@@ -1,189 +1,176 @@
+<p align="center"><img src="docs/branding/1a2o.png" width="128" alt="1a2o"></p>
+
 # 1a2o
 
-A personal workspace for mail, messages, calendars, tasks, notes, contacts, and AI. A public fork of [Inbox Zero](https://github.com/elie222/inbox-zero), powered by **OpenRouter** for classification and task analysis, with optional ChatGPT sign-in for Chat.
+**Your mail, messages, calendar, tasks, notes, contacts, AI chat, and coding agents in one workspace.**
 
-![Unified mail with split preview and account colors](docs/screenshots/mail.png)
+1a2o brings communication and planning together in a dark desktop workspace, with an Android companion. OpenRouter powers background classification and task analysis. Chat can use OpenRouter or a separate ChatGPT sign-in. You choose which accounts and services to connect.
 
-## Start here
+[Get started](docs/GETTING-STARTED.md) | [Android](docs/ANDROID.md) | [Screenshot gallery](docs/FEATURES.md) | [Backup and recovery](docs/SYNC.md) | [Releases](https://github.com/thencious/1a2o/releases)
 
-- **New installation:** [Getting started](docs/GETTING-STARTED.md), then [local server configuration](LOCAL-SETUP.md).
-- **Android phone or tablet:** [Install and pair Android](docs/ANDROID.md). Reuses an existing installation and its connected accounts; Agents stays on desktop.
-- **See the app:** [Feature gallery](docs/FEATURES.md). Every screenshot uses fictional data in isolated copies of the real interface.
-- **Tasks and Notes backup:** [Private cloud sync and recovery](docs/SYNC.md).
-
-## What is included
-
-| Workspace | Features |
+| Tasks | Notes |
 | --- | --- |
-| Mail | Gmail and Outlook together by default; cached lists and counts; split preview; account colors; keyboard navigation; recoverable drafts; send, reply, forward, attachments, scheduled mail and reminders. |
-| Messages | Beeper-connected networks, one conversation per row, groups and direct messages, platform filters, rule labels, combined conversations with a send-account switch, queued image attachments, media viewer, links, and platform-supported replies, edits, reactions, recall and forwarding. Discord servers are excluded. |
-| Calendar | Unified month and editable day timelines, persistent calendar visibility, distinct calendar colors, writable-calendar selection, drag to move and Alt-drag to copy. Provider permissions determine which originals can be edited. |
-| Tasks | Quick entry, AI time/deadline analysis, overdue and priority groups, rich notes, calendar event creation with duplicate review, deadline reminders, and transfer to Notes. |
-| Notes | Markdown and rich-text editing, automatic first-line titles, drag ordering, date filters and compact timestamps, and AI-assisted transfer to Tasks. |
-| Contacts | Profiles across supported networks and mail, exact-name deduplication with retained unique fields/profile links, and optional LinkedIn sync. Messaging-network APIs determine available contact details. |
-| Chat | Original in-app assistant with application tools and data; model/thinking controls and keyboard shortcuts; OpenRouter or optional ChatGPT connection; Open in ChatGPT button. ChatGPT subscription login is separate from OpenRouter classification. |
-| Agents | Desktop Codex CLI panels, conversation picker, title refresh, drag ordering, native terminal keys, optional multi-call scheduler, reset-aware timing, and task attention alerts. |
-| Tools | Rules separated by Mail, Messages, Calendar and Tasks; classification usage history and daily graphs; cleanup tools and combined-inbox bulk unsubscribe with resumable history scanning. |
+| ![Tasks with priorities, due dates and an editable note](docs/screenshots/tasks.png) | ![Notes with live Markdown editing](docs/screenshots/notes.png) |
 
-![Unified messages](docs/screenshots/messages.png)
+## Explore by tab
 
-![Unified calendar](docs/screenshots/calendar.png)
+[Mail](#mail) | [Messages](#messages) | [Calendar](#calendar) | [Tasks](#tasks) | [Notes](#notes) | [Contacts](#contacts) | [Chat](#chat) | [Agents](#agents) | [Tools](#tools) | [Settings and Android](#settings-and-android)
 
-![Tasks](docs/screenshots/tasks.png)
+Tabs can be dragged into your preferred order. Resizable panels, retained workspace state, dark account/platform colors, and keyboard navigation connect the different parts of the app.
 
-![Notes](docs/screenshots/notes.png)
+## Mail
 
-More screenshots, including Contacts, Chat, Agents, Rules, Usage, bulk unsubscribe and Android pairing, are in the [gallery](docs/FEATURES.md).
+A Gmail and Outlook client built on [Inbox Zero](https://github.com/elie222/inbox-zero), expanded into 1a2o's Mail tab. This repository preserves that fork relationship and its license.
 
-## AI and quotas
+- All accounts by default, with individual mailbox views and account colors.
+- Compact mail lists, cached recent mail and tag counts, and a separate reading column.
+- AI classification, multi-label filters, category focus, and editable rules.
+- Compose, drafts, reply, forward, attachments, scheduled sending, and reminders.
+- Up/down navigation, recipient addresses in the list and reader, Sent, Drafts, Archive, Spam, and Trash views.
+- Manual refresh, reconnect warnings, and background history synchronization.
 
-The optional local OpenRouter gateway persists minute/day request counters, uses an absolute **00:00 UTC** daily reset, and applies cooldowns. Configuration does not upgrade an OpenRouter account. The conservative default is 20 requests/minute and 50/day; use your provider's actual allowance. Existing-mail tagging is capped at 500 calls/day in the configured edition; bulk tagging can classify ten emails per call, with capacity reserved for new mail and interactive requests. Message conversations are reclassified only when relevant content, title or rules change, with the configured daily existing-chat cap.
+![Mail: combined inbox and reading pane](docs/screenshots/mail.png)
 
-The Usage tool shows recorded usage and failures by feature and day. AI-selected content is sent to the configured provider. Provider latency, quotas and platform-specific API capabilities still apply.
+## Messages
 
-## Local, Android and cloud
+One conversation list across Beeper-connected accounts, with the newest message from each conversation. Groups are included; Discord servers are excluded.
 
-The backend runs on your computer or a self-hosted server. It owns OAuth credentials, email/calendar operations, Beeper access, AI automation and persistent data. Android connects to that same backend instead of requiring you to configure accounts twice. Beeper Desktop must be available on the backend host for its messaging APIs. Android includes uploads/downloads, external-browser authorization and optional background notifications; the server must be reachable for live mail/messages/calendar operations.
+- Platform filters and Business, Casual, Notification, and Other rule labels.
+- Ctrl-click selection and conversation combining, with optional contact combining.
+- Combined histories retain platform colors; choose the account used for the next message.
+- Immediate outgoing bubbles, delivery status, queued pasted images with removable thumbnails, media viewing, and link previews.
+- Replies, mentions, editing, reactions, recall, forwarding, and read receipts **where the network exposes them**.
+- `/invite` prepares a meeting from recent conversation context and contacts; `/add` extracts and combines contact information. Other slash requests can go to Chat with their location as context.
 
-Tasks and Notes retain local copies and have a separate encrypted cloud-sync path. Consult [sync and recovery](docs/SYNC.md) for the exact offline, conflict and recovery behavior. This is not a claim that email providers or AI run offline.
+![Messages: conversation list and thread](docs/screenshots/messages.png)
 
-The repository contains source, synthetic screenshots, example configuration and reproducible build scripts. It excludes credentials, OAuth exports, mailbox databases, private screenshots, device sessions, signing keys and local build artifacts. APKs belong in GitHub Releases, not source control.
+[Message commands and meeting setup](MESSAGE-COMMANDS.md)
 
-## Upstream and licensing
+## Calendar
 
-This repository remains a fork of Inbox Zero. Upstream licensing and additional terms are unchanged; see [LICENSE](LICENSE). The vendored Tasks editor retains its [source attribution and license](apps/web/public/open-todo-zero/INTEGRATION.md). Inter and other vendored dependencies retain their own notices.
+- Google and Outlook calendars together in a monthly view, with cached events across restarts.
+- Click a date for an editable single-day timeline; use its **+** control to create an event.
+- Drag to move events and Alt-drag to copy, with protection against copying into the original position.
+- Distinct colors for visible calendars, persistent visibility/archive choices, and a default calendar.
+- Provider-supported event editing, attendee invitations, and Google Meet or a configured Zoom meeting link.
 
-<details>
-<summary>Original Inbox Zero documentation</summary>
+Calendar permissions still apply: read-only originals remain read-only, while an editable copy can be created in a writable calendar.
 
+![Calendar: unified month](docs/screenshots/calendar.png)
+![Calendar: single-day timeline](docs/screenshots/calendar-day.png)
 
-[![](apps/web/app/opengraph-image.jpg)](https://www.getinboxzero.com)
+## Tasks
 
-<p align="center">
-  <a href="https://www.getinboxzero.com">
-    <h1 align="center">Inbox Zero - your 24/7 AI email assistant and email app</h1>
-  </a>
-  <p align="center">
-    Organizes your inbox, pre-drafts replies, manages your calendar, and organizes attachments. Chat with it from Slack or Telegram to manage your inbox on the go. Open source alternative to Fyxer, but more customizable and secure. We also offer an email app, an open source alternative to Superhuman.
-    <br />
-    <a href="https://www.getinboxzero.com">Website</a>
-    ·
-    <a href="https://www.getinboxzero.com/discord">Discord</a>
-    ·
-    <a href="https://github.com/elie222/inbox-zero/issues">Issues</a>
-  </p>
-</p>
+- Quick task entry, Overdue, Urgent, Important, and Unimportant sections, and a separate Completed view.
+- Natural-language deadline and work-estimate analysis through OpenRouter, plus manual overrides.
+- Due dates, priority and effort controls, checkboxes, and resizable sections and detail panels.
+- Live Markdown details, undo/redo, and **Add to Notes**.
+- Calendar creation for explicit events/deadlines, including date-only all-day items and duplicate-event review.
+- Configured phone reminders, Windows notifications, and attention indicators.
 
-<div align="center">
+![Tasks: priority sections and detail editor](docs/screenshots/tasks.png)
 
-![Stars](https://img.shields.io/github/stars/elie222/inbox-zero?labelColor=black&style=for-the-badge&color=2563EB)
-![Forks](https://img.shields.io/github/forks/elie222/inbox-zero?labelColor=black&style=for-the-badge&color=2563EB)
+## Notes
 
-<a href="https://trendshift.io/repositories/6400" target="_blank"><img src="https://trendshift.io/api/badge/repositories/6400" alt="elie222%2Finbox-zero | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
+- Obsidian-style live Markdown editing: syntax reveal, headings, lists, checkboxes, tables, callouts, code highlighting, math, and source mode.
+- Links between notes, note embeds, search, manual drag ordering, and date sorting/filtering.
+- Automatic first-line titles and compact creation/edit timestamps.
+- **Add to Tasks** summarizes the note into a task and detects its time; missing times use a nonblocking prompt.
+- Immediate local saving, backend persistence, encrypted cloud backup, and retained recovery history.
 
-[![Vercel OSS Program](https://vercel.com/oss/program-badge.svg)](https://vercel.com/oss)
+![Notes: live Markdown and date controls](docs/screenshots/notes.png)
 
-</div>
+The editor integrates [like_obsidian_md_viewer](https://github.com/zacharyyamaoka/like_obsidian_md_viewer), derived from atomic-editor, while retaining 1a2o's interface. [Editor attribution](apps/web/vendor/obsidian-editor/SOURCE.md)
 
-## Mission
+## Contacts
 
-To help you spend less time in your inbox, so you can focus on what matters most.
+- A unified directory from email address books, supported messaging accounts, and LinkedIn imports.
+- Automatic duplicate matching retains distinct details, aliases, and links to original profiles.
+- **Ctrl-click contacts, right-click, then Combine contacts** for manual combinations, including different names and multiple profiles on the same platform.
+- Combined contacts still appear under each relevant platform filter, and combinations persist across source refreshes.
+- Optional LinkedIn browser-session sync from its account row. The provider determines which emails, phone numbers, and profiles are available.
 
-## Features
+![Contacts: combined profiles](docs/screenshots/contacts.png)
+![Contacts: manual combination](docs/screenshots/contacts-combine.png)
 
-Inbox Zero has two parts: an AI email assistant that works in the background on your Gmail or Outlook account, and an email client. Each works on its own.
+[LinkedIn connection guide](LINKEDIN-CONTACTS.md)
 
-### AI email assistant
+## Chat
 
-- **AI Personal Assistant:** Organizes your inbox and pre-drafts replies in your tone and style.
-- **AI Rules for email:** Explain in plain English how your AI should handle your inbox.
-- **Reply Zero:** Track emails to reply to and those awaiting responses.
-- **Bulk Unsubscriber:** One-click unsubscribe and archive emails you never read.
-- **Bulk Archiver:** Clean up your inbox by bulk archiving old emails.
-- **Cold Email Blocker:** Auto‑block cold emails.
-- **Email Analytics:** Track your activity and trends over time.
-- **Meeting Briefs:** Get personalized briefings before every meeting, pulling context from your email and calendar.
-- **Smart Filing:** Automatically save email attachments to Google Drive or OneDrive.
-- **Slack & Telegram Integration:** Chat with your AI assistant from Slack or Telegram to manage your inbox without leaving the apps you already use.
+- An in-app assistant with access to application data and tools across workspaces.
+- OpenRouter or optional ChatGPT sign-in; the ChatGPT account is separate from background OpenRouter automation.
+- Model and thinking-level controls beside the input, with account controls tucked away.
+- Shift+Up/Down changes thinking level; Ctrl+Shift+Up/Down changes model.
+- Attachments, contextual slash requests, and an **Open in ChatGPT** shortcut.
 
-### Email client
+![Chat: model controls and contextual assistant](docs/screenshots/chat.png)
 
-A fast email client for Gmail and Outlook, with a split inbox, all your accounts in one place, and team comments.
+## Agents
 
-- **Web and desktop:** open source. The desktop app is Electron, in [`apps/desktop`](apps/desktop).
-- **iOS:** a native Swift app, not open source yet. The [App Store app](https://www.getinboxzero.com/app) can connect to your own server URL if you self-host.
-- **Android:** an older React Native [Android app](https://www.getinboxzero.com/android).
+Desktop coding-agent sessions with live CLI output and native terminal input.
 
-Learn more in our [docs](https://docs.getinboxzero.com).
+- Open a new chat or resume an existing conversation from the conversation picker.
+- Up to four columns; additional sessions use a second row. Drag titles to reorder panels.
+- Preserve CLI shortcuts and terminal interactions.
+- Collapsed controls by default; expand the timer to configure a schedule.
+- Multiple individually cancellable scheduled calls, with an additional call defaulting to an hour later. Enter schedules rather than sending immediately.
+- Windows notifications and attention indicators when supported agent events require a response or report completion.
 
-## Demo
+Agents requires the local desktop host and is omitted from Android.
 
-[![Inbox Zero demo](https://image.mux.com/YeTrweHxCIM5tcBMXlvRbmDuPqL028lJrmJ3F6ZgwnDY/thumbnail.jpg?time=4.4&width=1280)](https://player.mux.com/YeTrweHxCIM5tcBMXlvRbmDuPqL028lJrmJ3F6ZgwnDY)
+![Agents: terminal panels and scheduler](docs/screenshots/agents.png)
 
-## Built with
+## Tools
 
-- [Next.js](https://nextjs.org/)
-- [Tailwind CSS](https://tailwindcss.com/)
-- [shadcn/ui](https://ui.shadcn.com/)
-- [Prisma](https://www.prisma.io/)
-- [Upstash](https://upstash.com/)
-- [Turborepo](https://turbo.build/)
-- [Popsy Illustrations](https://popsy.co/)
+### Rules
 
-## Star History
+Separate Mail, Messages, Calendar, and Tasks areas, with rule creation, labels, history, and testing controls. Message classification runs for new conversations and relevant changes; unchanged conversations are not repeatedly classified.
 
-[![Star History Chart](https://api.star-history.com/svg?repos=elie222/inbox-zero&type=Date)](https://www.star-history.com/#elie222/inbox-zero&Date)
+![Tools: rules](docs/screenshots/rules.png)
 
-## Feature Requests
+### AI usage
 
-To request a feature open a [GitHub issue](https://github.com/elie222/inbox-zero/issues), or join our [Discord](https://www.getinboxzero.com/discord).
+Daily feature breakdowns, hourly graphs, a date selector with previous/next navigation, retained history, and request/error details.
 
-## Getting Started
+![Tools: AI usage and history](docs/screenshots/usage.png)
 
-We offer a hosted version of Inbox Zero at [getinboxzero.com](https://www.getinboxzero.com).
+### Cleanup
 
-### Self-Hosting
+Bulk unsubscribe defaults to all inboxes and all time, with a mailbox selector, sender counts, read rates, and resumable history scanning. Additional cleanup and integration tools live here rather than adding more main tabs.
 
-The fastest way to self-host Inbox Zero is with the CLI:
+![Tools: bulk unsubscribe](docs/screenshots/bulk-unsubscribe.png)
 
-> **Prerequisites**: [Docker](https://docs.docker.com/engine/install/) and [Node.js](https://nodejs.org/) v24+
+## Settings and Android
 
-```bash
-npx @inbox-zero/cli setup      # One-time setup wizard
-npx @inbox-zero/cli start      # Start containers
-```
+- Connected accounts, calendar permissions and visibility, default calendar/meeting service, AI accounts, devices, and cloud recovery settings.
+- Windows startup/background operation, notifications that open the appropriate workspace, attention dots, and taskbar attention.
+- Updates show progress at the bottom right and install after validation.
+- Pair Android with a one-time code/QR instead of signing into every provider again.
+- Android shares the backend's accounts and data, supports files/media and optional background notifications, and retains local Tasks/Notes copies.
 
-Open http://localhost:3000
+![Settings: encrypted sync and recovery](docs/screenshots/cloud-sync.png)
+![Settings: Android pairing](docs/screenshots/android-pairing.png)
 
-For complete self-hosting instructions, production deployment, OAuth setup, and configuration options, see our **[Self-Hosting Docs](https://docs.getinboxzero.com/hosting/quick-start)**.
+[Android installation and limitations](docs/ANDROID.md) | [Private sync and recovery](docs/SYNC.md)
 
-### Local Development
+## Install and connect
 
-> **Prerequisites**: macOS or Linux (WSL on Windows), [Node.js](https://nodejs.org/) v24, and the pnpm version pinned in `package.json`. Install either [Docker Desktop](https://docs.docker.com/desktop/) with Compose or native PostgreSQL and Redis. On macOS, native services can be installed with `brew install postgresql@16 redis`.
+Start with [Getting started](docs/GETTING-STARTED.md), then follow the [local server guide](LOCAL-SETUP.md). The backend runs on your Windows computer or a self-hosted server. Provider OAuth apps and API keys are supplied by the installer; credentials are not included here.
 
-```bash
-git clone https://github.com/elie222/inbox-zero.git
-cd inbox-zero
-pnpm install
-pnpm local:start
-```
+Mail, messaging, calendars, agents, and AI need their configured services. Beeper Desktop runs on the backend host. Android needs a reachable backend for live provider operations; Tasks and Notes retain local copies and can sync with the configured private cloud independently.
 
-Open http://localhost:3000/mail and sign in with Google as `developer@example.com`, or Microsoft as `developer@outlook.test`. The Google mailbox contains demo messages. Demo users have onboarding completed, and premium checks are bypassed for local development.
+Tasks and Notes currently have both a backend cloud worker and direct browser cloud synchronization, using revision checks and conflict recovery. See the [sync architecture and recovery guide](docs/SYNC.md) for the precise behavior and tests. This is not a collaborative text CRDT or a guarantee of zero conflicts.
 
-The command starts an isolated database, Redis and its HTTP endpoint, both mail-provider emulators, billing and email-delivery emulators, an LLM emulator, and Next.js. It applies migrations and waits for services to become ready. No OAuth credentials or AI API keys are required. AI responses are canned; this mode exercises application flows, not model quality.
+## OpenRouter usage
 
-Existing `.env` files are left unchanged and ignored by this launcher. Generated credentials, seed data, and the current service addresses are stored under `.context/local-dev/`. Native database data stays there; Docker database data stays in a volume unique to the checkout. Restarts preserve database data and credentials. Redis caches and provider/emulator state start fresh on each run.
+The optional gateway persists request counters and cooldowns and resets daily quotas at **00:00 UTC**. Set limits to your actual provider allowance. The default configuration is conservative; adding credits does not remove model-specific rate limits.
 
-Press **Ctrl-C** to stop the app and the services this command started. Start it again with the same command. If port 3000 is occupied, use `pnpm local:start --port 3001`. Native PostgreSQL and Redis are selected when available; use `--backend docker` or `--backend native` to select explicitly. A checkout-specific loopback port prevents concurrent launchers; the operating system releases that lock after a crash, and stale PID files are replaced automatically. Services use automatically assigned ports, so existing databases and Redis instances are not reused or stopped.
+The configured existing-mail classifier uses batches of up to ten emails, an old-mail budget of 500 calls/day, and reserved capacity for new mail and interactive work. Tools | Usage shows where recorded calls were spent, including failures. AI features send selected content to the configured provider.
 
-Run `pnpm local:start --help` for options. If an unrelated process occupies the reported lock port, stop that process or use a different checkout location. PostgreSQL data must be opened with the same major version that created it. If you upgrade your native PostgreSQL major version, back up or move `.context/local-dev/postgres` before starting a new cluster.
+## Screenshots, source, and licenses
 
-For development against real providers, continue to use `pnpm setup`, your own environment files, and `pnpm dev`. See the **[Contributing Guide](https://docs.getinboxzero.com/contributing)** for configuration and devcontainer setup.
+Screenshots use fictional people, reserved example addresses, simulated provider responses, and synthetic terminal output. They demonstrate the interface; sends, invitations, AI calls, and scheduled agent execution are not performed for screenshots. [Full gallery and reproduction commands](docs/FEATURES.md)
 
-## Contributing
+Credentials, mailbox databases, personal exports, private QA captures, cloud recovery keys, and signing keys are excluded from the repository. Android packages are distributed through [Releases](https://github.com/thencious/1a2o/releases).
 
-View open tasks in [GitHub Issues](https://github.com/elie222/inbox-zero/issues) and join our [Discord](https://www.getinboxzero.com/discord) to discuss what's being worked on.
-
-Docker images are automatically built on every push to `main` and tagged with the commit SHA (e.g., `elie222/inbox-zero:abc1234`). The `latest` tag always points to the most recent main build. Formal releases are tagged with the version number without the `v` prefix (e.g., git tag `v2.30.0` → `ghcr.io/elie222/inbox-zero:2.30.0`), plus a minor alias (e.g., `2.30`).
-
-</details>
+See [LICENSE](LICENSE) for the applicable license and additional terms, and the source notices for vendored editors, fonts, and dependencies. Renaming the project does not replace those licenses.

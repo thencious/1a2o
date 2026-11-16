@@ -25,6 +25,7 @@
           ? "zenro.notes.revision"
           : "open-inbox-zero.todo.revision";
     try {
+      const requestedRevision = localStorage.getItem(revision);
       const response = await fetch(
         `/api/user/todo/state?workspace=${workspace}`,
         { cache: "no-store", signal: AbortSignal.timeout(5000) },
@@ -32,6 +33,7 @@
       if (!response.ok) return;
       const remote = await response.json();
       const { mergeWorkspaceItems } = await import("./workspace-data.mjs");
+      if (localStorage.getItem(revision) !== requestedRevision) return;
       const local = JSON.parse(localStorage.getItem(key) || "[]"),
         base = JSON.parse(localStorage.getItem(baseline) || "[]");
       const merged = mergeWorkspaceItems(base, local, remote.tasks);

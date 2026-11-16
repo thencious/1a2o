@@ -64,7 +64,9 @@ function reorder(id, targetId, after) {
   save();
   render();
 }
-const editor = new toastui.Editor({
+const editor = new (window.WorkspaceEditor || toastui.Editor)({
+  documents: () => notes,
+  openDocument: (id) => open(id),
   el: $("editor-mount"),
   height: "100%",
   minHeight: "200px",
@@ -280,9 +282,11 @@ function open(id) {
   updateButton();
 }
 function _focusEditor() {
-  const mode = editor.isMarkdownMode()
-    ? ".toastui-editor-md-container"
-    : ".toastui-editor-ww-container";
+  const mode = $("editor-mount").querySelector(".cm-editor")
+    ? ".cm-editor"
+    : editor.isMarkdownMode()
+      ? ".toastui-editor-md-container"
+      : ".toastui-editor-ww-container";
   $("editor-mount")
     .querySelector(`${mode} [contenteditable="true"]`)
     ?.focus({ preventScroll: true });

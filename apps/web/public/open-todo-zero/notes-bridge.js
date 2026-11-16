@@ -8,7 +8,7 @@
     dirtyKey = "zenro.notes.dirty";
   const requests = new Map();
   let revision = bootstrap.revision,
-    baseline = bootstrap.tasks,
+    baseline = structuredClone(bootstrap.tasks),
     pending = null,
     busy = false,
     conflict = false,
@@ -82,6 +82,7 @@
     }
     if (refreshBusy) return;
     refreshBusy = true;
+    const requestedRevision = revision;
     try {
       const response = await fetch("/api/user/todo/state?workspace=notes", {
         cache: "no-store",
@@ -90,10 +91,16 @@
       const state = await response.json();
       if (state.revision === revision) return;
       const { mergeWorkspaceItems } = await import("./workspace-data.mjs");
+      // A save may finish while this GET is in flight. Its older response
+      // cannot be reconciled against the newer acknowledgement baseline.
+      if (busy || revision !== requestedRevision) {
+        setTimeout(refresh, 800);
+        return;
+      }
       const local = JSON.parse(localStorage.getItem(key) || "[]"),
         merged = mergeWorkspaceItems(baseline, local, state.tasks);
       revision = state.revision;
-      baseline = state.tasks;
+      baseline = structuredClone(state.tasks);
       conflict = false;
       localStorage.setItem("zenro.notes.baseline", JSON.stringify(baseline));
       localStorage.setItem(revisionKey, revision);
@@ -102,7 +109,9 @@
         new CustomEvent("zenro-notes-merge", { detail: merged }),
       );
       pending =
-        JSON.stringify(merged) !== JSON.stringify(state.tasks) ? merged : null;
+        JSON.stringify(merged) !== JSON.stringify(state.tasks)
+          ? structuredClone(merged)
+          : null;
       if (pending) await flush();
       else {
         localStorage.removeItem(dirtyKey);
@@ -119,7 +128,9 @@
     clearTimeout(timer);
     timer = null;
     if (busy || !pending || conflict) return;
-    const tasks = pending;
+    // Editor objects keep changing while the request waits for a response.
+    // Only the detached document actually sent can become the saved baseline.
+    const tasks = structuredClone(pending);
     pending = null;
     busy = true;
     try {
@@ -150,7 +161,7 @@
       localStorage.setItem(key, JSON.stringify(tasks));
       window.Onea2oCloud?.changed("notes");
       localStorage.setItem(dirtyKey, "true");
-      pending = tasks;
+      pending = structuredClone(tasks);
       clearTimeout(timer);
       timer = setTimeout(flush, 500);
     },
@@ -180,7 +191,7 @@
     };
   window.addEventListener("onea2o-cloud-merge", (event) => {
     if (event.detail.workspace !== "notes") return;
-    pending = event.detail.items;
+    pending = structuredClone(event.detail.items);
     localStorage.setItem(dirtyKey, "true");
     window.dispatchEvent(
       new CustomEvent("zenro-notes-merge", { detail: event.detail.items }),

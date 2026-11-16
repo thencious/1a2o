@@ -150,7 +150,7 @@
   function emit(workspace, value) {
     window.dispatchEvent(
       new CustomEvent("onea2o-cloud-merge", {
-        detail: { workspace, items: value },
+        detail: { workspace, items: structuredClone(value) },
       }),
     );
     channel?.postMessage({ workspace });
@@ -202,7 +202,10 @@
       return;
     }
     report(workspace, "pending");
-    const snapshot = { revision: crypto.randomUUID(), tasks: merged };
+    const snapshot = {
+      revision: crypto.randomUUID(),
+      tasks: structuredClone(merged),
+    };
     const encrypted = await packCloudState(snapshot, connection.key);
     const result = await requestCloud(`/v1/documents/${id}`, {
       method: "PUT",
@@ -219,7 +222,7 @@
     if (!result.response.ok) throw new Error("Private cloud save will retry");
     save(metaKey(workspace), {
       revision: snapshot.revision,
-      baseline: merged,
+      baseline: snapshot.tasks,
       at: Date.now(),
     });
     if (JSON.stringify(items(workspace)) === payload)

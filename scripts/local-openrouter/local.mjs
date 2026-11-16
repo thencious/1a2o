@@ -93,7 +93,7 @@ async function stop() {
 
 async function start() {
   const buildDirectory = activeReleaseDirectory(root);
-  if (!existsSync(resolve(root, "apps/web", buildDirectory, "BUILD_ID"))) throw new Error("No installed production build is available. Run Build Inbox Zero.cmd.");
+  if (!existsSync(resolve(root, "apps/web", buildDirectory, "BUILD_ID"))) throw new Error("No installed production build is available. Run Build 1a2o.cmd.");
   let webRunning = await listening(3000);
   if (webRunning) {
     try {
@@ -183,7 +183,7 @@ async function start() {
   if (!workerRunning("mail-jobs-status.json", "mail-jobs[.]mjs")) service("mail-jobs", node, ["scripts/local-openrouter/mail-jobs.mjs"]);
   record();
   console.log("Inbox Zero ready at http://localhost:3000/login");
-  console.log("Stop with Stop Inbox Zero.cmd. Logs are in .context/logs.");
+  console.log("Stop with Stop 1a2o.cmd. Logs are in .context/logs.");
 }
 
 try {

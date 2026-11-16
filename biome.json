@@ -1,5 +1,5 @@
 {
-  "$schema": "https://biomejs.dev/schemas/2.5.1/schema.json",
+  "$schema": "https://biomejs.dev/schemas/2.5.2/schema.json",
   "linter": {
     "enabled": true,
     "rules": {
@@ -84,7 +84,8 @@
       "!**/*.svg",
       "!.turbo/**",
       "!.next/**",
-      "!apps/web/public/open-todo-zero/vendor/**"
+      "!apps/web/public/open-todo-zero/vendor/**",
+      "!apps/web/vendor/obsidian-editor/**"
     ]
   },
   "javascript": {
@@ -107,7 +108,8 @@
       "!sw.js",
       "!.vscode",
       "!.claude",
-      "!apps/web/public/open-todo-zero/vendor"
+      "!!apps/web/public/open-todo-zero/vendor",
+      "!!apps/web/vendor/obsidian-editor"
     ]
   },
   "assist": {
@@ -159,7 +161,8 @@
           "DOMPurify",
           "StillCloud",
           "StillAlerts",
-          "StillOpenRouter"
+          "StillOpenRouter",
+          "WorkspaceMarkdownEditor"
         ]
       },
       "linter": {

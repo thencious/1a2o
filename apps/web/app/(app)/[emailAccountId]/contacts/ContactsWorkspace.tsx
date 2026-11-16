@@ -3,6 +3,20 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import useSWR from "swr";
 import { ArrowLeft, ContactRound, RefreshCw, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  ContextMenu,
+  ContextMenuTrigger,
+  ContextMenuContent,
+  ContextMenuItem,
+} from "@/components/ui/context-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { combineContactsAction } from "@/utils/actions/combine-contacts";
 import { LinkedInContactsConnection } from "@/components/LinkedInContactsConnection";
 import { MailListToolbarSurface } from "@inboxzero/mail-ui/MailListToolbarSurface";
 import {
@@ -37,6 +51,10 @@ export function ContactsWorkspace() {
   const [query, setQuery] = useState("");
   const [network, setNetwork] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [combining, setCombining] = useState(false);
+  const [combineBusy, setCombineBusy] = useState(false);
+  const [combineFailure, setCombineFailure] = useState("");
   const [limit, setLimit] = useState(200);
   const [refreshing, setRefreshing] = useState(false);
   const [failure, setFailure] = useState("");
@@ -125,6 +143,28 @@ export function ContactsWorkspace() {
     setNetwork(value === "all" ? null : value);
     setLimit(200);
   };
+  const selectedPeople = rows.filter((person) => selectedIds.has(person.key));
+  const combineSelected = async () => {
+    if (combineBusy || selectedPeople.length < 2) return;
+    setCombineBusy(true);
+    setCombineFailure("");
+    try {
+      const result = await combineContactsAction({
+        contactKeys: selectedPeople.map((person) => person.key),
+      });
+      if (!result?.data) throw new Error(getActionErrorMessage(result ?? {}));
+      await mutate();
+      setSelected(JSON.stringify(["zenro:contacts", result.data.id]));
+      setSelectedIds(new Set());
+      setCombining(false);
+    } catch (error) {
+      setCombineFailure(
+        error instanceof Error ? error.message : "Could not combine contacts.",
+      );
+    } finally {
+      setCombineBusy(false);
+    }
+  };
   return (
     <section
       aria-label="Unified contacts"
@@ -136,6 +176,46 @@ export function ContactsWorkspace() {
       className="flex h-[calc(100dvh-2.25rem)] min-h-0 flex-col overflow-hidden bg-background lg:h-dvh"
     >
       <h1 className="sr-only">Contacts</h1>
+      <Dialog
+        open={combining}
+        onOpenChange={(value) => {
+          if (!combineBusy) setCombining(value);
+        }}
+      >
+        <DialogContent>
+          <DialogTitle>Combine contacts?</DialogTitle>
+          <DialogDescription>
+            Keep all unique details and profile links in one contact.
+            Conversations stay separate.
+          </DialogDescription>
+          <ul className="space-y-1 text-sm">
+            {selectedPeople.map((person) => (
+              <li key={person.key}>{person.name}</li>
+            ))}
+          </ul>
+          {combineFailure && (
+            <p role="alert" className="text-sm text-destructive">
+              {combineFailure}
+            </p>
+          )}
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              disabled={combineBusy}
+              onClick={() => setCombining(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              disabled={combineBusy || selectedPeople.length < 2}
+              loading={combineBusy}
+              onClick={combineSelected}
+            >
+              Combine contacts
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <ResizablePanelGroup
         direction="horizontal"
         autoSaveId="messages-contacts-split"
@@ -232,54 +312,94 @@ export function ContactsWorkspace() {
               className="min-h-0 flex-1 overflow-auto"
             >
               {matches.slice(0, limit).map((person) => (
-                <div key={person.key} role="listitem">
-                  <button
-                    type="button"
-                    aria-label={`${person.name} on ${person.profiles.map((profile) => profile.network).join(", ")}`}
-                    aria-pressed={current?.key === person.key}
-                    onClick={() =>
-                      setSelected(person.profiles[0].sources[0].key)
-                    }
-                    className={`flex w-full items-center gap-2 border-b border-l-2 px-3 py-2 text-left hover:bg-muted/50 ${current?.key === person.key ? "bg-muted" : ""}`}
-                    style={{
-                      borderLeftColor: networkColor(
-                        network ?? person.profiles[0].network,
-                        50,
-                        52,
-                      ),
-                    }}
-                  >
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-sm">{person.name}</div>
-                      <div className="truncate text-xs text-muted-foreground">
-                        {contactValues(person, "email")[0] ||
-                          contactValues(person, "phoneNumber")[0] ||
-                          contactValues(person, "username")[0] ||
-                          person.profiles
-                            .map((profile) => profile.network)
-                            .join(" · ")}
-                      </div>
+                <ContextMenu key={person.key}>
+                  <ContextMenuTrigger asChild>
+                    <div
+                      role="listitem"
+                      onContextMenu={() => {
+                        if (!selectedIds.has(person.key))
+                          setSelectedIds(new Set([person.key]));
+                      }}
+                    >
+                      <button
+                        type="button"
+                        aria-label={`${person.name} on ${person.profiles.map((profile) => profile.network).join(", ")}`}
+                        aria-pressed={selectedIds.has(person.key)}
+                        aria-current={
+                          current?.key === person.key ? "true" : undefined
+                        }
+                        onClick={(event) => {
+                          setSelectedIds((previous) => {
+                            if (!event.ctrlKey && !event.metaKey)
+                              return new Set([person.key]);
+                            const next = new Set(
+                              previous.size
+                                ? previous
+                                : current
+                                  ? [current.key]
+                                  : [],
+                            );
+                            if (next.has(person.key)) next.delete(person.key);
+                            else next.add(person.key);
+                            return next;
+                          });
+                          setSelected(person.profiles[0].sources[0].key);
+                        }}
+                        className={`flex w-full items-center gap-2 border-b border-l-2 px-3 py-2 text-left hover:bg-muted/50 ${selectedIds.has(person.key) || current?.key === person.key ? "bg-muted" : ""}`}
+                        style={{
+                          borderLeftColor: networkColor(
+                            network ?? person.profiles[0].network,
+                            50,
+                            52,
+                          ),
+                        }}
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate text-sm">{person.name}</div>
+                          <div className="truncate text-xs text-muted-foreground">
+                            {contactValues(person, "email")[0] ||
+                              contactValues(person, "phoneNumber")[0] ||
+                              contactValues(person, "username")[0] ||
+                              person.profiles
+                                .map((profile) => profile.network)
+                                .join(" · ")}
+                          </div>
+                        </div>
+                        <div className="flex shrink-0 flex-wrap justify-end gap-1">
+                          {person.profiles.map((profile) => (
+                            <span
+                              key={profile.key}
+                              className="shrink-0 rounded px-1.5 py-0.5 text-[10px]"
+                              style={{
+                                backgroundColor: networkColor(
+                                  profile.network,
+                                  22,
+                                  22,
+                                ),
+                                color: networkColor(profile.network, 50, 78),
+                              }}
+                            >
+                              {profile.network}
+                            </span>
+                          ))}
+                        </div>
+                      </button>
                     </div>
-                    <div className="flex shrink-0 flex-wrap justify-end gap-1">
-                      {person.profiles.map((profile) => (
-                        <span
-                          key={profile.key}
-                          className="shrink-0 rounded px-1.5 py-0.5 text-[10px]"
-                          style={{
-                            backgroundColor: networkColor(
-                              profile.network,
-                              22,
-                              22,
-                            ),
-                            color: networkColor(profile.network, 50, 78),
-                          }}
-                        >
-                          {profile.network}
-                        </span>
-                      ))}
-                    </div>
-                  </button>
-                </div>
+                  </ContextMenuTrigger>
+                  <ContextMenuContent>
+                    <ContextMenuItem
+                      disabled={
+                        selectedPeople.length < 2 || selectedPeople.length > 20
+                      }
+                      onSelect={() => {
+                        setCombineFailure("");
+                        setCombining(true);
+                      }}
+                    >
+                      Combine contacts
+                    </ContextMenuItem>
+                  </ContextMenuContent>
+                </ContextMenu>
               ))}
               {matches.length > limit && (
                 <Button

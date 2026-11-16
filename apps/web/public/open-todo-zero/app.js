@@ -174,7 +174,7 @@
     redoDeletionHistory = [];
   const newTaskDrafts = { important: "", unimportant: "" };
   const mobile = matchMedia("(max-width: 720px)");
-  const editor = new toastui.Editor({
+  const editor = new (window.WorkspaceEditor || toastui.Editor)({
     el: $("editor-mount"),
     height: "100%",
     minHeight: "200px",
@@ -468,9 +468,11 @@
     if (start == null) input.scrollLeft = input.scrollWidth;
   }
   function focusNotes() {
-    const mode = editor.isMarkdownMode()
-      ? ".toastui-editor-md-container"
-      : ".toastui-editor-ww-container";
+    const mode = $("editor-mount").querySelector(".cm-editor")
+      ? ".cm-editor"
+      : editor.isMarkdownMode()
+        ? ".toastui-editor-md-container"
+        : ".toastui-editor-ww-container";
     $("editor-mount")
       .querySelector(`${mode} [contenteditable="true"]`)
       ?.focus({ preventScroll: true });

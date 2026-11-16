@@ -4,10 +4,10 @@ Open **Messages → Contacts → LinkedIn sync → Connect LinkedIn**. Sign in a
 complete any verification in the LinkedIn window that opens on the desktop PC.
 No developer application, API token, or paid service is required for this flow.
 
-Zenro opens its own temporary browser context; it does not read existing browser
+1a2o opens its own temporary browser context; it does not read existing browser
 profiles or Beeper's LinkedIn credentials. The resulting LinkedIn session is
 passed to the local server over child-process IPC, validated, and stored encrypted
-per user. Zenro does not collect the password. Disconnect deletes the saved
+per user. 1a2o does not collect the password. Disconnect deletes the saved
 session and imported directory. Closing the sign-in window cancels the attempt.
 The sign-in helper is available only to the configured desktop installation owner.
 

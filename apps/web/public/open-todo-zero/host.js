@@ -135,6 +135,7 @@
     }
     if (refreshBusy) return;
     refreshBusy = true;
+    const requestedRevision = revision;
     try {
       const response = await fetch("/api/user/todo/state", {
         cache: "no-store",
@@ -143,6 +144,10 @@
       const state = await response.json();
       if (state.revision === revision) return;
       const { mergeWorkspaceItems } = await import("./workspace-data.mjs");
+      if (busy || revision !== requestedRevision) {
+        setTimeout(refreshExternal, 750);
+        return;
+      }
       const merged = mergeWorkspaceItems(
         JSON.parse(last),
         JSON.parse(pending || localStorage.getItem(taskKey) || "[]"),

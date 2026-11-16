@@ -1,9 +1,14 @@
 // @vitest-environment jsdom
-import { render, waitFor } from "@testing-library/react";
+import { cleanup, render, waitFor } from "@testing-library/react";
 import type { Cache } from "swr";
 import useSWR, { useSWRConfig } from "swr";
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { EMAIL_ACCOUNT_ID_REQUIRED_ERROR } from "@/utils/config";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  EMAIL_ACCOUNT_ID_REQUIRED_ERROR,
+  NO_REFRESH_TOKEN_ERROR_CODE,
+} from "@/utils/config";
+import { useAccounts } from "@/hooks/useAccounts";
+import { resetEmailAccountsInflight } from "@/utils/fetch-email-accounts";
 import { SWRProvider } from "./SWRProvider";
 import { resetSwrPersistenceBlocksForTesting } from "@/utils/swr-persistence";
 
@@ -34,6 +39,13 @@ describe("SWRProvider persisted cache", () => {
     resetSwrPersistenceBlocksForTesting();
     accountState.emailAccountId = "account-a";
     scopedCache = undefined;
+    resetEmailAccountsInflight();
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+    resetEmailAccountsInflight();
   });
 
   it("hydrates whitelisted entries into the live cache after mount", async () => {
@@ -234,5 +246,91 @@ describe("SWRProvider persisted cache", () => {
     window.dispatchEvent(new Event("pagehide"));
 
     expect(window.localStorage.getItem(snapshotKey("account-a"))).toBeNull();
+  });
+
+  it("refreshes connection status once without retrying failed mailbox requests", async () => {
+    let disconnected = false;
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url === "/api/user/email-accounts") {
+        return {
+          ok: true,
+          json: async () => ({
+            emailAccounts: [
+              {
+                id: "account-a",
+                account: { disconnectedAt: disconnected ? "2026-11-16" : null },
+              },
+            ],
+          }),
+        };
+      }
+      if (url === "/api/user/error-messages") {
+        return {
+          ok: true,
+          json: async () => ({ warning: disconnected }),
+        };
+      }
+      return {
+        ok: false,
+        status: 401,
+        json: async () => ({
+          error: "Reconnect your account",
+          errorCode: NO_REFRESH_TOKEN_ERROR_CODE,
+        }),
+      };
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    function ConnectionProbe({ fail }: { fail: boolean }) {
+      const { data: accounts } = useAccounts();
+      const { data: errors } = useSWR("/api/user/error-messages");
+      useSWR(fail ? ["/api/labels", "account-a"] : null, {
+        errorRetryInterval: 10,
+      });
+      useSWR(fail ? ["/api/folders", "account-a"] : null, {
+        errorRetryInterval: 10,
+      });
+      return (
+        <div data-testid="connection">
+          {accounts?.emailAccounts[0].account.disconnectedAt && errors?.warning
+            ? "reconnect"
+            : "connected"}
+        </div>
+      );
+    }
+
+    const view = render(
+      <SWRProvider>
+        <ConnectionProbe fail={false} />
+      </SWRProvider>,
+    );
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+
+    disconnected = true;
+    view.rerender(
+      <SWRProvider>
+        <ConnectionProbe fail />
+      </SWRProvider>,
+    );
+    await waitFor(() =>
+      expect(view.getByTestId("connection").textContent).toBe("reconnect"),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(
+      fetchMock.mock.calls.filter(([url]) => url === "/api/labels"),
+    ).toHaveLength(1);
+    expect(
+      fetchMock.mock.calls.filter(([url]) => url === "/api/folders"),
+    ).toHaveLength(1);
+    expect(
+      fetchMock.mock.calls.filter(
+        ([url]) => url === "/api/user/email-accounts",
+      ),
+    ).toHaveLength(2);
+    expect(
+      fetchMock.mock.calls.filter(
+        ([url]) => url === "/api/user/error-messages",
+      ),
+    ).toHaveLength(2);
   });
 });

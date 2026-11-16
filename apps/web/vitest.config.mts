@@ -32,7 +32,11 @@ export default defineConfig({
   test: {
     environment: "node",
     setupFiles: ["./__tests__/setup.ts"],
-    exclude: [...configDefaults.exclude, "__tests__/playwright/**"],
+    exclude: [
+      ...configDefaults.exclude,
+      "__tests__/playwright/**",
+      "vendor/obsidian-editor/**",
+    ],
     server: {
       deps: {
         inline: [/@hookform\/resolvers/],

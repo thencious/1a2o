@@ -54,10 +54,10 @@ try {
     const frame = page.frameLocator('iframe');
     if (workspace === 'notes') {
       await frame.locator('.note-row').filter({ hasText: 'Launch planning' }).click();
-      await frame.locator('.toastui-editor-ww-container [contenteditable=true]').waitFor();
+      await frame.locator('.cm-editor [contenteditable=true]').waitFor();
     } else {
       await frame.getByRole('button', { name: 'Review launch checklist', exact: true }).click();
-      await frame.locator('.toastui-editor-ww-container [contenteditable=true]').waitFor();
+      await frame.locator('.cm-editor [contenteditable=true]').waitFor();
     }
     await page.waitForTimeout(700);
     await page.screenshot({ path: resolve(output, `${workspace}.png`), animations: 'disabled' });

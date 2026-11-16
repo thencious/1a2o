@@ -1,4 +1,4 @@
-# Connect Outlook to Open Inbox Zero
+# Connect Outlook to 1a2o
 
 Outlook needs your own Microsoft OAuth application; Google credentials authorize
 Gmail only. Follow [the upstream Microsoft guide](docs/hosting/microsoft-oauth.mdx)
@@ -28,7 +28,7 @@ and keep all client credentials private.
 ```
 
 Run **Configure Outlook.cmd** with that file path, stop/restart the app, and use
-Accounts > Add Microsoft while signed into the Inbox Zero account that should
+Accounts > Add Microsoft while signed into the 1a2o account that should
 own the mailbox. The importer writes `.env.local` without displaying secrets.
 Never commit the downloaded credentials or generated runtime data.
 

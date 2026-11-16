@@ -4,7 +4,7 @@
 
 1a2o needs one backend. Use your Windows computer for a personal installation, or a private HTTPS server if you need access while the computer is off. Android is a companion to that backend. Mail, calendar, AI and messaging integrations are not installed separately on each phone.
 
-**Already have 1a2o on a computer?** Skip server setup. Install the Android APK from [Releases](https://github.com/thencious/open-inbox-zero/releases), open Settings > Android on the computer, and follow the [pairing guide](ANDROID.md). Pairing reuses existing accounts. No new Gmail, Outlook or Beeper logins are needed for the same installation.
+**Already have 1a2o on a computer?** Skip server setup. Install the Android APK from [Releases](https://github.com/thencious/1a2o/releases), open Settings > Android on the computer, and follow the [pairing guide](ANDROID.md). Pairing reuses existing accounts. No new Gmail, Outlook or Beeper logins are needed for the same installation.
 
 ## First server installation
 

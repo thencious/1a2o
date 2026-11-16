@@ -1,6 +1,6 @@
 # 1a2o: local OpenRouter setup
 
-This optional local runner extends [Inbox Zero](https://github.com/elie222/inbox-zero).
+This guide configures the 1a2o local backend and optional OpenRouter gateway.
 Use the upstream hosting guides for Docker, Linux, macOS, or a cloud deployment.
 The portable runner and desktop launcher documented here target Windows x64.
 No credentials, installed tools, mailbox databases, or generated executables are
@@ -16,7 +16,7 @@ Archived calendars remain uncolored; changing the active selection redistributes
 the palette across the calendars in use.
 Archive or restore calendars using the visibility
 checklist in User → Settings → Calendars. Click a
-day to create an event, or click an event to view or edit it. The event editor
+day to open its timeline, or use the + control to create an event, or click an event to view or edit it. The event editor
 remembers the last calendar used for new events. Shared calendars are shown once;
 read-only calendars remain viewable. Recurring-event edits affect one occurrence.
 Mailbox-specific connections and scheduling settings are in User → Settings →
@@ -39,7 +39,7 @@ or clone location is required.
 
 ```text
 workspace/
-  open-inbox-zero/                         # this checkout
+  1a2o/                                   # this checkout
   tools/
     node-v24.22.1-win-x64/node.exe
     pnpm/node_modules/pnpm/bin/pnpm.cjs     # pnpm 11.19.0
@@ -74,7 +74,7 @@ must initialize this data directory before using the portable runner.
 Ports 3000 (app), 3010 (quota gateway), 5433 (PostgreSQL), 6380 (Garnet), and
 8079 (Redis HTTP bridge) must be free. The runner binds services to loopback.
 Do not point another app at port 3000; the desktop launcher checks app readiness
-and reports a conflicting server instead of treating it as Inbox Zero.
+and reports a conflicting server instead of treating it as 1a2o.
 
 ## Configure OpenRouter
 
@@ -139,10 +139,10 @@ provider setup. See [OUTLOOK-SETUP.md](OUTLOOK-SETUP.md) for Microsoft accounts.
 
 ## Build and run
 
-From the checkout, run **Build Inbox Zero.cmd**, then **Start Inbox Zero.cmd**.
+From the checkout, run **Build 1a2o.cmd**, then **Start 1a2o.cmd**.
 The build deploys database migrations before building the production app.
 Open `http://localhost:3000/mail?accountScope=all&split=all` and connect mailboxes.
-Use **Stop Inbox Zero.cmd** to stop this installation's services.
+Use **Stop 1a2o.cmd** to stop this installation's services.
 
 Starting the local runner with an OpenRouter key starts automation for connected
 mailboxes. Its setup enables standard tagging and reply-draft rules. Bulk
@@ -156,7 +156,7 @@ For a desktop app icon, run the installer from PowerShell:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/local-openrouter/install-windows.ps1
 ```
 
-It compiles the launcher, derives an icon from the repository's Inbox Zero image,
+It compiles the launcher, derives an icon from the repository's 1a2o logo,
 and creates Desktop/Start-menu shortcuts. Existing private launcher configuration
 is preserved. Pin the Start-menu shortcut to the taskbar using Windows.
 Add `-EnableStartup` if you want background services started at Windows sign-in.
@@ -345,7 +345,7 @@ compaction keep their existing OpenRouter routing and quota. ChatGPT inference
 uses the account's applicable plan access/limits; availability is checked against
 the account's model catalog and errors are shown without silent provider fallback.
 
-Chat also exposes `discoverZenroTools` and `runZenroTool` for app-wide capabilities:
+Chat also exposes `discover1a2oTools` and `run1a2oTool` for app-wide capabilities:
 owned-mailbox reads, messages/replies/reactions/recall/forwarding, unified contacts,
 calendar events and settings, Tasks and Notes, their transfers and calendar sync,
 message/calendar/task rules, agent panels and schedules, and historical usage.

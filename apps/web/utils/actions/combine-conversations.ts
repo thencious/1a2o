@@ -7,9 +7,8 @@ import {
   saveConversationGroup,
 } from "@/utils/messages/conversation-group-store";
 import { contactDirectory } from "@/utils/contacts/directory";
-import { updateSavedContacts } from "@/utils/contacts/local-store";
+import { saveCombinedContacts } from "@/utils/contacts/save-combined";
 import {
-  combineContactDetails,
   combinedContactName,
   conversationContacts,
 } from "@/utils/contacts/combine";
@@ -68,31 +67,7 @@ export const combineConversationsAction = actionClientUser
         title = combinedContactName(
           sources.map((source) => source.contact.name),
         );
-        await updateSavedContacts(userId, async (stored) => {
-          const localIds = new Set(
-            sources
-              .filter((source) => source.accountId === "zenro:contacts")
-              .map((source) => source.contact.id),
-          );
-          const current = stored.filter((contact) => localIds.has(contact.id));
-          const merged = combineContactDetails(
-            [
-              ...sources,
-              ...current.map((contact) => ({
-                accountId: "zenro:contacts",
-                contact,
-              })),
-            ],
-            title,
-          );
-          merged.id = current[0]?.id ?? `combined:${crypto.randomUUID()}`;
-          return {
-            contacts: [
-              ...stored.filter((contact) => !localIds.has(contact.id)),
-              merged,
-            ],
-          };
-        });
+        await saveCombinedContacts(userId, sources, title);
       }
     }
     const members: Conversation[] = contexts.map((context, index) => ({

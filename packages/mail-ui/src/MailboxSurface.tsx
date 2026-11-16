@@ -79,7 +79,7 @@ export function MailboxThreadList<T>({
   className = "flex min-h-0 flex-1 flex-col overflow-hidden",
   scrollClassName = "min-h-0 flex-1 overflow-y-auto overflow-x-hidden",
   listClassName,
-  groupHeaderClassName = "pt-4 pr-5 pb-1.5 font-normal text-muted-foreground text-sm",
+  groupHeaderClassName = "bg-muted py-0.5 pr-5 font-normal text-foreground/80 text-xs leading-4",
   loadMoreClassName = "flex justify-center px-4 py-5",
   emptyClassName = "px-6 py-12 text-center text-muted-foreground text-sm",
   style,

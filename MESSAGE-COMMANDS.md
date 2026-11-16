@@ -1,6 +1,6 @@
 # Message commands
 
-Type `/invite` in a Messages conversation and press Enter or Send. Zenro handles
+Type `/invite` in a Messages conversation and press Enter or Send. 1a2o handles
 the command locally; it is never posted to the conversation.
 
 The command retrieves the latest 50 nonempty text lines, including multiline
@@ -30,7 +30,7 @@ Physical meetings use their agreed location. Online meetings keep any existing
 agreed HTTPS meeting link. Otherwise Google Meet creates a new conference on a
 Google calendar, or Zoom uses the saved personal room link. A new Zoom meeting
 is not generated through the Zoom API. Calendar providers send invitations via
-their native event APIs; no separate email is composed by Zenro.
+their native event APIs; no separate email is composed by 1a2o.
 
 The settings are encrypted per user on the server and survive restarts. Existing
 event copies and edits retain their calendar; choosing a calendar for one event
@@ -50,12 +50,12 @@ receive additional values; unmatched names become new contacts. Ambiguous names
 are skipped and reported. Repeated imports preserve distinct values without
 replacing old details. Unsupported or invented values are rejected.
 
-The additions are encrypted, saved in Zenro, merged with all contact sources on
+The additions are encrypted, saved in 1a2o, merged with all contact sources on
 refresh, and available to `/invite`. Provider address books are not modified.
 The command is never sent into the conversation. Any text typed while the command
 is running is preserved. Results show new/updated counts and ambiguity warnings.
 
-## Slash requests throughout Zenro
+## Slash requests throughout 1a2o
 
 Typing `/` at the start of an app input opens Chat with the originating tab,
 input field, and selected item attached as context. Finish and submit the request

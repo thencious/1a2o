@@ -91,6 +91,7 @@ const configs = {
     mocks: { ...basics,
       '@/utils/actions/linkedin-contacts': 'export const startLinkedInSignInAction=async()=>({data:{}}),cancelLinkedInSignInAction=startLinkedInSignInAction,disconnectLinkedInContactsAction=startLinkedInSignInAction,syncLinkedInContactsAction=startLinkedInSignInAction;',
       '@/utils/actions/beeper-contacts': 'export const refreshBeeperContactsAction=async()=>({data:{}});',
+      '@/utils/actions/combine-contacts': 'export const combineContactsAction=async()=>({serverError:"Synthetic preview only"});',
       '@/utils/account-linking': 'export const getAccountLinkingUrl=async()=>"/showcase";',
       '@/utils/redirect': 'export const redirectToSafeUrl=()=>{};',
     },
@@ -145,6 +146,17 @@ const configs = {
       await route.fulfill({ json: data }); return true;
     },
     ready: async page => { await page.getByText('14 senders', { exact: true }).waitFor(); await page.getByRole('checkbox', { name: 'Select Studio weekly', exact: true }).first().click(); await page.getByRole('checkbox', { name: 'Select Product updates', exact: true }).first().click(); },
+  },
+};
+
+configs['contacts-combine'] = {
+  ...configs.contacts,
+  ready: async page => {
+    await page.getByRole('button', { name: 'Jamie Carter on LinkedIn', exact: true }).click();
+    await page.getByRole('button', { name: 'Robin Taylor on WhatsApp', exact: true }).click({modifiers:['Control']});
+    await page.getByRole('button', { name: 'Jamie Carter on LinkedIn', exact: true }).click({button:'right'});
+    await page.getByRole('menuitem', { name: 'Combine contacts', exact: true }).click();
+    await page.getByRole('dialog').waitFor();
   },
 };
 

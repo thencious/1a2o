@@ -11,6 +11,7 @@ import {
 import { SWRConfig, mutate, useSWRConfig } from "swr";
 import { useAccount } from "@/providers/EmailAccountProvider";
 import { swrFetcher } from "./swr-fetcher";
+import { EMAIL_ACCOUNTS_KEY } from "@/utils/fetch-email-accounts";
 import {
   accountIdFromSnapshotKey,
   clearPersistedSwrCacheForAccount,
@@ -80,16 +81,61 @@ export const SWRProvider = (props: { children: React.ReactNode }) => {
         value={{
           fetcher: enhancedFetcher,
           provider: () => provider,
-          onError: (error: unknown) => console.log("SWR error:", error),
           ...getDevOnlySWRConfig(),
         }}
       >
-        <PersistedSwrCache />
-        {props.children}
+        <SWRRequestConfig>
+          <PersistedSwrCache />
+          {props.children}
+        </SWRRequestConfig>
       </SWRConfig>
     </SWRContext.Provider>
   );
 };
+
+function SWRRequestConfig({ children }: { children: React.ReactNode }) {
+  const { mutate: scopedMutate } = useSWRConfig();
+  const connectionRefresh = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (connectionRefresh.current !== null)
+        clearTimeout(connectionRefresh.current);
+    },
+    [],
+  );
+  const config = useMemo(
+    () => ({
+      shouldRetryOnError: (error: { retryable?: boolean }) =>
+        error?.retryable !== false,
+      onError: (error: { retryable?: boolean }, key: string) => {
+        if (error?.retryable !== false) {
+          console.log("SWR error:", error);
+          return;
+        }
+
+        // Refresh user-level status without recursively retrying it if that
+        // endpoint itself fails with an authentication error.
+        if (key === EMAIL_ACCOUNTS_KEY || key === "/api/user/error-messages")
+          return;
+
+        // Include every account in a burst of background failures, without
+        // replacing the workspace or dropping the most recent failure.
+        if (connectionRefresh.current !== null)
+          clearTimeout(connectionRefresh.current);
+        connectionRefresh.current = setTimeout(() => {
+          connectionRefresh.current = null;
+          Promise.allSettled([
+            scopedMutate(EMAIL_ACCOUNTS_KEY),
+            scopedMutate("/api/user/error-messages"),
+          ]);
+        }, 100);
+      },
+    }),
+    [scopedMutate],
+  );
+
+  return <SWRConfig value={config}>{children}</SWRConfig>;
+}
 
 /**
  * Hydrates whitelisted SWR entries from localStorage and snapshots them back.

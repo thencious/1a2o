@@ -4,12 +4,10 @@ import {
   MICROSOFT_AUTH_EXPIRED_ERROR_CODE,
   NO_REFRESH_TOKEN_ERROR_CODE,
 } from "@/utils/config";
-import { prefixPath } from "@/utils/path";
 import {
   getSWRFetchErrorMessage,
   normalizeSWRFetchErrorData,
 } from "./swr-error";
-import { redirectToSafeUrl } from "@/utils/redirect";
 
 // https://swr.vercel.app/docs/error-handling#status-code-and-error-object
 export const swrFetcher = async (
@@ -61,26 +59,28 @@ export const swrFetcher = async (
       }
     }
 
-    if (
+    const isProviderAuthError =
       errorData.errorCode === NO_REFRESH_TOKEN_ERROR_CODE ||
-      errorData.errorCode === MICROSOFT_AUTH_EXPIRED_ERROR_CODE
-    ) {
-      if (emailAccountId) {
-        const redirectUrl = prefixPath(emailAccountId, "/permissions/consent");
-        redirectToSafeUrl(redirectUrl);
-        return;
-      }
-    }
+      errorData.errorCode === MICROSOFT_AUTH_EXPIRED_ERROR_CODE;
 
     const errorMessage = getSWRFetchErrorMessage(errorData);
-    const error: Error & { info?: Record<string, unknown>; status?: number } =
-      new Error(errorMessage);
+    const error: Error & {
+      info?: Record<string, unknown>;
+      status?: number;
+      errorCode?: string;
+      retryable?: boolean;
+    } = new Error(errorMessage);
 
     // Attach extra info to the error object.
     error.info = errorData;
     error.status = res.status;
+    if (typeof errorData.errorCode === "string")
+      error.errorCode = errorData.errorCode;
+    // Background requests must not navigate or repeatedly retry a disconnected
+    // mailbox. The account banner provides the explicit reconnect action.
+    if (isProviderAuthError) error.retryable = false;
 
-    const isKnownError = errorData.isKnownError;
+    const isKnownError = errorData.isKnownError || isProviderAuthError;
 
     if (!isKnownError) {
       captureException(error, {

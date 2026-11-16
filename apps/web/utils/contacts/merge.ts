@@ -145,8 +145,16 @@ export function mergeContacts(accounts: ContactAccount[]): UnifiedContact[] {
             explicit.find(profileIndexes.get(profile.key)!),
           ),
         ).size > 1;
-      // A repeated app makes name-only matching ambiguous. Do not choose a person arbitrarily.
-      return (ambiguous ? group.map((profile) => [profile]) : [group]).map(
+      // Ambiguous name matches must not undo an explicit combination. Keep
+      // its linked profiles together while separating unconfirmed matches.
+      const confirmed = new Map<number, ContactProfile[]>();
+      for (const profile of group) {
+        const root = explicit.find(profileIndexes.get(profile.key)!);
+        const members = confirmed.get(root) ?? [];
+        members.push(profile);
+        confirmed.set(root, members);
+      }
+      return (ambiguous ? [...confirmed.values()] : [group]).map(
         (profiles) => ({
           key: JSON.stringify(profiles.map((profile) => profile.key).sort()),
           name:

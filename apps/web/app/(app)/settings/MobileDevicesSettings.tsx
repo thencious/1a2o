@@ -108,7 +108,7 @@ export function MobileDevicesSettings() {
           Install the Android APK from{" "}
           <a
             className="underline"
-            href="https://github.com/thencious/open-inbox-zero/releases"
+            href="https://github.com/thencious/1a2o/releases"
             target="_blank"
             rel="noopener noreferrer"
           >

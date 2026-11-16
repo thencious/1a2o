@@ -7,90 +7,95 @@
   "captures": [
     {
       "file": "agents.png",
-      "sha256": "aca147bc0d5ccff1618f16938c91a0b58093a58359e0d64819eb07a20af5efab",
+      "sha256": "2f8aed8ff5ad04e58318bb066f0288d96c842a4f1e00502e7944c99c8011cc12",
       "data": "fictional-fixture"
     },
     {
       "file": "android-pairing.png",
-      "sha256": "a5a66650c5b994ef5746e486d90594f233d3fbee27c0a2c9d252b5c0fa37c462",
+      "sha256": "fb9ac1e96dd12e78997357acab7530fd72e3726bd9a3539c506f9acf6fdc1d65",
       "data": "fictional-fixture"
     },
     {
       "file": "bulk-unsubscribe.png",
-      "sha256": "55deb967b7d116cc03f4dd6b6258d1ee6f2cfd7eb2bc2ac7e4d3f1cc257b6bde",
+      "sha256": "82d8316d22cb9db1acdfb526c7512d3dbd1039c21ac2285b897c7b6ec43a56cc",
       "data": "fictional-fixture"
     },
     {
       "file": "calendar-day.png",
-      "sha256": "0b06648a78a22f5cf4dd6c31f1e790ec01ce66d00f53ca37b90696e59556771f",
+      "sha256": "0576e697b95dcdb91966a303dfadca83823ae967b30eb4a308bcecf9b07265a1",
       "data": "fictional-fixture"
     },
     {
       "file": "calendar.png",
-      "sha256": "47c1f947c495285b81c3e8c9332e408c0873eb029082b2081da154c22e512b10",
+      "sha256": "8c4cba74dd71fd86ea65fae0d1bfa778aae6917956dff491456ec0b321222f18",
       "data": "fictional-fixture"
     },
     {
       "file": "chat.png",
-      "sha256": "c9dede66365a249cd7485daac175c99569922a673f195132679a3468572df232",
+      "sha256": "45ac2df5379e01d76e39f8bcce563c07645244104ec03543833ac5cb9a9b406f",
       "data": "fictional-fixture"
     },
     {
       "file": "cloud-sync.png",
-      "sha256": "215be7595e31138d23520bdf5b0f972443915014bb05eb48fb8ce0e9c3aac728",
+      "sha256": "042868f8aca9f9e612ebb5b56578872656e77841738dab333991802547868168",
+      "data": "fictional-fixture"
+    },
+    {
+      "file": "contacts-combine.png",
+      "sha256": "270dbd3e497579ecb6fa335b692490e916c7f5944f92390e7c30398899a3f5dc",
       "data": "fictional-fixture"
     },
     {
       "file": "contacts.png",
-      "sha256": "1dc446e8585f81c0adca5838f90f1bdcfcf62f8e5924d63f365a569e3f456382",
+      "sha256": "867f2a0cf83cf5ed4fc8642d80059ba8fd2f1f8b12870145d02eabc9c4504343",
       "data": "fictional-fixture"
     },
     {
       "file": "mail.png",
-      "sha256": "37f6888d7f8ddd0fc7c47917d35d6e6da95ea1a72f04889b9364fa2fbc7df30b",
+      "sha256": "8f3cebc3e35b6c25de238b4479af88fecef6f05a08274c9e0d4bac804f71b32c",
       "data": "fictional-fixture"
     },
     {
       "file": "messages-mobile.png",
-      "sha256": "75016a5d49ff72bb0f5be7ac6fe99ee6ec35d3555490f2787ab89a1210512473",
+      "sha256": "8f67f3f195123d82724577422d2ec10f73e57d802f2159428deed8dd876093fa",
       "data": "fictional-fixture",
       "device": "responsive browser viewport; not Android emulator"
     },
     {
       "file": "messages.png",
-      "sha256": "7473723dcf001238a73bba0307a058657a5902a70f28d5ed12656f08b5226cfc",
+      "sha256": "dc75fa2f2b3132c7cb0e6c53e431a735693750ac4d02600f75f6d323dcab675e",
       "data": "fictional-fixture"
     },
     {
       "file": "notes-mobile.png",
-      "sha256": "996a3063a865637994c879b8cb20e26109bf206b9727c405fa14ab0ee7e4e2cc",
+      "sha256": "0f1758514e2397e243b64cae2e2e534b826e32786f83562257e904c6c16d4739",
       "data": "fictional-fixture",
       "device": "responsive browser viewport; not Android emulator"
     },
     {
       "file": "notes.png",
-      "sha256": "4864d6d11027950f6c58d49fd7a7627b1d06f4e3760fc9b7453de2e32d1e92e8",
+      "sha256": "361a28ad91122c75270e8861a71fd8756932dbbac5dfd5f180794361eacfeeaa",
       "data": "fictional-fixture"
     },
     {
       "file": "rules.png",
-      "sha256": "4f5e564dd99f40189cc77149aaac2b7972c7d0316572bc5c09ea226053ae36c0",
+      "sha256": "441c33162826b9e3975a3f2b2c1f6bf2ff06ceb75250699665e6dc1c147246f4",
       "data": "fictional-fixture"
     },
     {
       "file": "tasks-mobile.png",
-      "sha256": "2b81f2374357dc8cce4a449672c3ccf3332bc370899707add4d2b8e827b8c819",
+      "sha256": "9631b11d093db58c85f5851a91e470a28a988a3cb57ae1847da1ac0437187939",
       "data": "fictional-fixture",
       "device": "responsive browser viewport; not Android emulator"
     },
     {
       "file": "tasks.png",
-      "sha256": "25215c8d8438d07fd718f5c06b47c288177581d2f6a44e3f4aacd47b1b12587e",
+      "sha256": "53f3b29d03ea019939c53a0b94f546f28ab97f0770eacf0546bd9537680ce668",
       "data": "fictional-fixture"
     },
     {
       "file": "usage.png",
-      "sha256": "3158acdb1e2bb81d7858f0ec1d977bab6c0e2202804c616eb085695d58030541",
+      "sha256": "3aadbd7b647090e133dd961be147112eda028d4ecc41db8430e461996d566dca",
       "data": "fictional-fixture"
     }
   ]

@@ -1,9 +1,11 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import type { MailPredicate } from "@inboxzero/mail-core/queries";
 import useSWR from "swr";
-import { useSWRConfig } from "swr";
+import { useSWRConfig, unstable_serialize } from "swr";
+import { useAccounts } from "@/hooks/useAccounts";
+import { loadCombinedLabels } from "./load-combined-labels";
 import { useEngineMailThreads } from "@/app/(app)/[emailAccountId]/mail/use-engine-mail-threads";
 import type { LabelsResponse } from "@/app/api/labels/route";
 import type { EmailLabels } from "@/providers/email-label-types";
@@ -136,10 +138,30 @@ export function combinedMailThreadsQuery(input: {
 }
 
 function useLabelsByAccount(accountIds: string[]): Record<string, EmailLabels> {
-  const { fetcher } = useSWRConfig();
+  const { fetcher, cache, mutate } = useSWRConfig();
+  const { data: accounts, mutate: refreshAccounts } = useAccounts(
+    accountIds.length > 0,
+  );
+  const retained = useRef<Record<string, EmailLabels>>({});
+  const unavailableIds = useMemo(
+    () =>
+      new Set(
+        accounts?.emailAccounts
+          .filter(
+            (account) =>
+              account.account.disconnectedAt || account.providerRateLimit,
+          )
+          .map((account) => account.id) ?? [],
+      ),
+    [accounts],
+  );
   const accountKey = useMemo(
-    () => [...accountIds].sort().join(":"),
-    [accountIds],
+    () =>
+      JSON.stringify([
+        [...accountIds].sort(),
+        [...unavailableIds].filter((id) => accountIds.includes(id)).sort(),
+      ]),
+    [accountIds, unavailableIds],
   );
   const { data } = useSWR(
     fetcher && accountIds.length
@@ -147,40 +169,48 @@ function useLabelsByAccount(accountIds: string[]): Record<string, EmailLabels> {
       : null,
     async () => {
       if (!fetcher) return {};
-      const entries = await Promise.all(
-        accountIds.map(async (accountId) => {
-          const response = (await fetcher(["/api/labels", accountId])) as
-            | LabelsResponse
-            | undefined;
-          return [accountId, labelsResponseToMap(response)] as const;
-        }),
-      );
-      return Object.fromEntries(entries);
+      let needsReconnect = false;
+      const next = await loadCombinedLabels({
+        accountIds,
+        previous: {
+          ...(cache.get(
+            unstable_serialize(["mail-labels-by-account", accountKey]),
+          )?.data as Record<string, EmailLabels> | undefined),
+          ...retained.current,
+        },
+        fetchLabels: async (accountId) => {
+          if (unavailableIds.has(accountId)) return;
+          try {
+            return (await fetcher(["/api/labels", accountId])) as
+              | LabelsResponse
+              | undefined;
+          } catch (error) {
+            if (
+              error &&
+              typeof error === "object" &&
+              "retryable" in error &&
+              error.retryable === false
+            )
+              needsReconnect = true;
+            throw error;
+          }
+        },
+      });
+      retained.current = { ...retained.current, ...next };
+      if (needsReconnect)
+        Promise.allSettled([
+          refreshAccounts(),
+          mutate("/api/user/error-messages"),
+        ]);
+      return next;
     },
-    { revalidateOnFocus: false },
+    {
+      revalidateOnFocus: false,
+      shouldRetryOnError: false,
+      keepPreviousData: true,
+    },
   );
   return data ?? EMPTY_LABELS_BY_ACCOUNT;
-}
-
-function labelsResponseToMap(
-  response: LabelsResponse | undefined,
-): EmailLabels {
-  if (!response?.labels) return {};
-  return Object.fromEntries(
-    response.labels
-      .filter((label) => label.type === "user")
-      .map((label) => [
-        label.id || "",
-        {
-          id: label.id || "",
-          name: label.name || "",
-          type: label.type || null,
-          color: label.color,
-          labelListVisibility: label.labelListVisibility,
-          messageListVisibility: label.messageListVisibility,
-        },
-      ]),
-  );
 }
 
 export function labelNamesToAccountScopedPredicate({

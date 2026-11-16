@@ -59,6 +59,20 @@ try{
  probe=spawn(node,["--import","tsx",resolve(app,"node_modules/next/dist/bin/next"),"start","--hostname","127.0.0.1","--port","3002"],{cwd:app,env:{...process.env,LOCAL_NEXT_BUILD_DIR:candidate},windowsHide:true,stdio:["ignore",out,err]});closeSync(out);closeSync(err);
  await health(3002);
  const login=await fetch("http://127.0.0.1:3002/login",{signal:AbortSignal.timeout(45000)});await login.body?.cancel();if(!login.ok)throw new Error("Candidate login page failed");
+ // Workspace templates use public assets outside the Next bundle. Verify every
+ // dependency against the candidate server before switching the installed app.
+ const workspaceAssets=new Set();
+ for(const template of ["index.html","notes.html"]){
+  const html=readFileSync(resolve(app,"public/open-todo-zero",template),"utf8");
+  for(const match of html.matchAll(/<(?:script|link)\b[^>]*(?:src|href)="([^"]+)"/g)){
+   const target=new URL(match[1],"http://127.0.0.1:3002/open-todo-zero/");
+   if(target.origin==="http://127.0.0.1:3002"&&!target.pathname.startsWith("/branding/"))workspaceAssets.add(target.href);
+  }
+ }
+ for(const url of workspaceAssets){
+  const response=await fetch(url,{signal:AbortSignal.timeout(10000)});await response.body?.cancel();
+  if(!response.ok)throw new Error("Candidate workspace asset failed: "+new URL(url).pathname);
+ }
  const manifest=JSON.parse(readFileSync(resolve(destination,"build-manifest.json"),"utf8"));
  const asset=manifest.rootMainFiles?.find(file=>file.endsWith(".js"));
  if(asset){const response=await fetch(`http://127.0.0.1:3002/_next/${asset}`,{signal:AbortSignal.timeout(10000)});await response.body?.cancel();if(!response.ok)throw new Error("Candidate static assets failed");}

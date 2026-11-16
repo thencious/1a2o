@@ -1,31 +1,7 @@
-# Security Policy
+# 1a2o security policy
 
-## Reporting a Vulnerability
+Report vulnerabilities privately using the repository's [Security tab](https://github.com/thencious/1a2o/security). If private reporting is unavailable, open an issue asking for a private reporting channel without posting exploit details, credentials, personal data, or recovery keys.
 
-If you discover a security vulnerability, please report it privately:
+Include the affected version, reproduction steps using fictional data, expected and actual behavior, and potential impact. Never attach a live database, mailbox export, authenticated browser profile, or private configuration.
 
-1. **GitHub Security Advisories (preferred):** [Report a vulnerability](https://github.com/elie222/inbox-zero/security/advisories/new)
-2. **Email:** [security@getinboxzero.com](mailto:security@getinboxzero.com)
-
-Please do **not** open a public GitHub issue for security vulnerabilities.
-
-## What to Include
-
-- A description of the vulnerability
-- Steps to reproduce
-- Potential impact
-- Any suggested remediation (optional)
-
-## What to Expect
-
-- Acknowledgement of your report within 3 business days
-- Initial assessment within 7 days
-- Coordinated disclosure timeline based on severity
-
-## Scope
-
-This policy covers the Inbox Zero application at getinboxzero.com and code in this repository.
-
-## Recognition
-
-We're grateful to researchers who help keep Inbox Zero and our users safe. With your permission, we're happy to credit you in our acknowledgments after the issue is resolved.
+This policy covers the code in this repository and its desktop, Android, and private-sync components. It does not cover independently operated provider services. There is no guaranteed response-time commitment or bug-bounty program.

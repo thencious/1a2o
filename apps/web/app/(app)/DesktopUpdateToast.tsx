@@ -24,6 +24,7 @@ export function DesktopUpdateToast() {
     if (dismissedVersion.current === status.version) return;
     toast(`Downloading 1a2o ${status.version}`, {
       id: DESKTOP_UPDATE_TOAST_ID,
+      position: "bottom-right",
       description: (
         <div className="mt-2 flex items-center gap-2">
           <Progress value={status.percent} className="h-1.5" />

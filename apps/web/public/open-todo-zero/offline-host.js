@@ -1,4 +1,22 @@
 (() => {
+  window.WorkspaceEditor = function WorkspaceEditor(options) {
+    if (window.WorkspaceMarkdownEditor) {
+      try {
+        return new window.WorkspaceMarkdownEditor(options);
+      } catch (error) {
+        options.el.replaceChildren();
+        window.dispatchEvent(
+          new CustomEvent("onea2o-editor-fallback", {
+            detail: {
+              message:
+                error instanceof Error ? error.message : "Editor unavailable",
+            },
+          }),
+        );
+      }
+    }
+    return new window.toastui.Editor(options);
+  };
   if (!crypto.randomUUID)
     crypto.randomUUID = () => {
       const bytes = crypto.getRandomValues(new Uint8Array(16));
@@ -82,9 +100,14 @@
   async function sync() {
     if (syncing) return;
     syncing = true;
+    const requestedRevision = localStorage.getItem(revisionKey);
     try {
       const remote = await fetchState();
       const { mergeWorkspaceItems } = await import("./workspace-data.mjs");
+      if (localStorage.getItem(revisionKey) !== requestedRevision) {
+        timer = setTimeout(sync, 750);
+        return;
+      }
       const base = JSON.parse(localStorage.getItem(baselineKey) || "[]");
       const local = read(),
         merged = mergeWorkspaceItems(base, local, remote.tasks);

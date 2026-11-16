@@ -45,3 +45,9 @@ Notion's engineering write-ups describe durable local records, queued operations
 - `node scripts/sync/offline-browser-test.mjs`: cold offline startup at a nested app URL, editing Tasks and Notes, and retaining edits after reload while all host APIs fail.
 - `node scripts/sync/direct-cloud-browser-test.mjs`: an isolated fictional workspace on the configured private service; all host APIs return 503, direct encrypted edits reach cloud, a fresh browser retrieves both workspaces, and revoked clients cannot upload while their rejected edit remains local.
 - `node scripts/sync/live-test.mjs`: verifies actual local/cloud encrypted snapshots agree, then tests history and fresh-host recovery using a separate synthetic document. Live checks require private host configuration; they never edit real task/note content.
+
+## Autosave ordering
+
+The current implementation has two cloud transports: the backend worker and direct browser sync. They are separate paths, not a single mutually exclusive coordinator. Save acknowledgements record only the detached document actually sent; delayed host refreshes are discarded after a newer save, and cloud merge events do not share mutable editor objects with upload snapshots.
+
+`node scripts/sync/autosave-browser-test.mjs` uses isolated fictional documents and delayed replies to cover in-flight typing, stale Notes/Tasks refreshes, and direct cloud save acknowledgements without connecting to a real cloud account.

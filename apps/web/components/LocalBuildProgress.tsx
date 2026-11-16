@@ -36,6 +36,7 @@ export function LocalBuildProgress() {
     }
     toast("Updating 1a2o", {
       id: toastId,
+      position: "bottom-right",
       duration: Number.POSITIVE_INFINITY,
       dismissible: false,
       closeButton: false,
