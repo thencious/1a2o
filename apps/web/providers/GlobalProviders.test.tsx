@@ -207,6 +207,22 @@ describe("service worker updates", () => {
     expect(waiting.postMessage).not.toHaveBeenCalled();
   });
 
+  it("activates installed PWA updates without requiring an Electron bridge, while preserving open drafts", async () => {
+    const { registration, waiting } = setUpDesktopUpdate({ desktop: false });
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: query === "(display-mode: standalone)",
+    }));
+    render(<GlobalProviders>calendar</GlobalProviders>);
+    await waitFor(() => expect(registration.update).toHaveBeenCalled());
+    const close = registerOpenComposer();
+    vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
+    act(() => document.dispatchEvent(new Event("visibilitychange")));
+    expect(waiting.postMessage).not.toHaveBeenCalled();
+    close();
+    act(() => document.dispatchEvent(new Event("visibilitychange")));
+    expect(waiting.postMessage).toHaveBeenCalledWith({ type: SKIP_WAITING });
+  });
+
   it("defers controller changes from another window while composing", async () => {
     const { registration, serviceWorker, reload } = setUpDesktopUpdate();
     const view = render(<GlobalProviders>mail</GlobalProviders>);

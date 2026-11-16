@@ -11,6 +11,7 @@ import {
 } from "@/utils/outlook/calendar-client";
 import type { CalendarOAuthProvider, CalendarTokens } from "../oauth-types";
 import { autoPopulateTimezone } from "../timezone-helpers";
+import { requireCalendarEditingScope } from "../editing-permission";
 
 export function createMicrosoftCalendarProvider(
   logger: Logger,
@@ -18,7 +19,10 @@ export function createMicrosoftCalendarProvider(
   return {
     name: "microsoft",
 
-    async exchangeCodeForTokens(code: string): Promise<CalendarTokens> {
+    async exchangeCodeForTokens(
+      code: string,
+      options?: { requireWrite?: boolean },
+    ): Promise<CalendarTokens> {
       if (!env.MICROSOFT_CLIENT_ID || !env.MICROSOFT_CLIENT_SECRET) {
         throw new Error("Microsoft credentials not configured");
       }
@@ -39,6 +43,8 @@ export function createMicrosoftCalendarProvider(
           tokens.error_description || "Failed to exchange code for tokens",
         );
       }
+      if (options?.requireWrite)
+        requireCalendarEditingScope("microsoft", tokens.scope);
 
       const { email: microsoftEmail } = await fetchMicrosoftUserProfile(
         tokens.access_token,

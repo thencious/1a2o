@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { Progress } from "@/components/ui/progress";
 import { useDesktopUpdateStatus } from "@/hooks/useDesktopUpdateStatus";
+import { LocalBuildProgress } from "@/components/LocalBuildProgress";
 
 const DESKTOP_UPDATE_TOAST_ID = "desktop-app-update";
 
@@ -21,7 +22,7 @@ export function DesktopUpdateToast() {
     }
     // Progress keeps arriving after dismissal; don't reopen the same download.
     if (dismissedVersion.current === status.version) return;
-    toast(`Downloading Inbox Zero ${status.version}`, {
+    toast(`Downloading 1a2o ${status.version}`, {
       id: DESKTOP_UPDATE_TOAST_ID,
       description: (
         <div className="mt-2 flex items-center gap-2">
@@ -46,5 +47,5 @@ export function DesktopUpdateToast() {
     },
     [],
   );
-  return null;
+  return <LocalBuildProgress />;
 }

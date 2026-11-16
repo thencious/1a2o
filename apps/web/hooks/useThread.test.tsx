@@ -22,6 +22,48 @@ vi.mock("@/providers/EmailAccountProvider", () => ({
 }));
 
 describe("useThread", () => {
+  it("keeps a loaded conversation during recovery without leaking it into another selection", async () => {
+    let snapshot = readySnapshot(view());
+    const listeners = new Set<() => void>();
+    mail.client.observeConversation.mockImplementation(() => ({
+      getSnapshot: () => snapshot,
+      subscribe: (listener: () => void) => {
+        listeners.add(listener);
+        return () => listeners.delete(listener);
+      },
+      close: () => undefined,
+    }));
+    const { result, rerender } = renderHook(({ id }) => useThread({ id }), {
+      initialProps: { id: "c-1" },
+    });
+    await waitFor(() => expect(result.current.data?.thread.id).toBe("c-1"));
+    const loaded = result.current.data;
+    act(() => {
+      snapshot = {
+        status: "loading",
+        data: null,
+        revision: null,
+        refreshing: true,
+        error: null,
+      };
+      for (const listener of listeners) listener();
+    });
+    expect(result.current.data).toBe(loaded);
+    expect(result.current.isLoading).toBe(false);
+    act(() => {
+      snapshot = {
+        status: "error",
+        data: null,
+        revision: null,
+        refreshing: false,
+        error: { code: "unavailable", retryable: true },
+      };
+      for (const listener of listeners) listener();
+    });
+    expect(result.current.data).toBe(loaded);
+    rerender({ id: "c-2" });
+    expect(result.current.data).toBeUndefined();
+  });
   beforeEach(() => {
     vi.clearAllMocks();
     mail.client.ensureMessageContent.mockResolvedValue({ status: "scheduled" });

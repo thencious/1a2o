@@ -83,7 +83,8 @@
       "!**/tsconfig*.json",
       "!**/*.svg",
       "!.turbo/**",
-      "!.next/**"
+      "!.next/**",
+      "!apps/web/public/open-todo-zero/vendor/**"
     ]
   },
   "javascript": {
@@ -105,7 +106,8 @@
       "!.next",
       "!sw.js",
       "!.vscode",
-      "!.claude"
+      "!.claude",
+      "!apps/web/public/open-todo-zero/vendor"
     ]
   },
   "assist": {
@@ -140,6 +142,40 @@
         "rules": {
           "suspicious": {
             "noConsole": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": [
+        "apps/web/public/open-todo-zero/**/*.js",
+        "apps/web/public/open-todo-zero/**/*.mjs"
+      ],
+      "javascript": {
+        "globals": [
+          "StillDeadlines",
+          "InboxTodoHost",
+          "toastui",
+          "DOMPurify",
+          "StillCloud",
+          "StillAlerts",
+          "StillOpenRouter"
+        ]
+      },
+      "linter": {
+        "rules": {
+          "style": {
+            "noParameterAssign": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["apps/web/public/open-todo-zero/**/*.css"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noDescendingSpecificity": "off"
           }
         }
       }

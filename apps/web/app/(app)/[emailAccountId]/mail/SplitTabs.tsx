@@ -3,6 +3,7 @@
 import { GripVerticalIcon, PlusIcon } from "lucide-react";
 import { motion } from "motion/react";
 import {
+  type CSSProperties,
   type PointerEvent,
   type ReactNode,
   useEffect,
@@ -26,6 +27,7 @@ export type MailSplitTab = {
   deletable: boolean;
   /** Saved splits can be dragged into a new position; synthetic ones stay put. */
   reorderable?: boolean;
+  style?: CSSProperties;
 };
 
 export type SplitTabsProps = {
@@ -44,6 +46,7 @@ export type SplitTabsProps = {
   canCreateSplits: boolean;
   /** Sits before the tabs, lined up with the row checkboxes below. */
   leading?: ReactNode;
+  trailing?: ReactNode;
   className?: string;
 };
 
@@ -59,6 +62,7 @@ export function SplitTabs({
   onNewSplit,
   canCreateSplits,
   leading,
+  trailing,
   className,
 }: SplitTabsProps) {
   const tabsRef = useRef<HTMLDivElement>(null);
@@ -234,6 +238,7 @@ export function SplitTabs({
                 layout={drag ? "position" : false}
                 transition={TAB_MOVE_TRANSITION}
                 data-split-tab={split.id}
+                style={split.style}
                 onClick={() => {
                   if (!suppressClickRef.current) onSelect(split.id);
                 }}
@@ -307,6 +312,7 @@ export function SplitTabs({
           )
         : null}
 
+      {trailing}
       {canCreateSplits && (
         <button
           type="button"

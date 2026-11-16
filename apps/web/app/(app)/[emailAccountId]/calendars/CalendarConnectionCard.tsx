@@ -38,6 +38,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Separator } from "@/components/ui/separator";
+import { ConnectCalendar } from "./ConnectCalendar";
 
 type CalendarConnection = GetCalendarsResponse["connections"][0];
 
@@ -198,6 +199,20 @@ export function CalendarConnectionCard({
       </CardHeader>
       <Separator className="mb-4" />
       <CardContent className="p-4 pt-0">
+        {(connection.provider === "google" ||
+          connection.provider === "microsoft") && (
+          <div className="mb-4 space-y-2">
+            <ConnectCalendar
+              provider={connection.provider}
+              editing
+              email={connection.email}
+            />
+            <p className="text-xs text-muted-foreground">
+              Reconnect and approve calendar event editing. Shared calendars
+              also need editing access from their owner.
+            </p>
+          </div>
+        )}
         {calendars.length > 0 ? (
           <Collapsible open={isOpen} onOpenChange={setIsOpen}>
             <CollapsibleTrigger asChild>

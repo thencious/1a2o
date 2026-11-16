@@ -1,15 +1,26 @@
 "use client";
 
-import { type CSSProperties, Suspense, useCallback, useRef } from "react";
+import {
+  type CSSProperties,
+  Suspense,
+  useCallback,
+  useRef,
+  useState,
+} from "react";
+import { PanelLeft } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import dynamic from "next/dynamic";
-import { usePathname } from "next/navigation";
+import { useVisibleWorkspacePathname } from "@/components/WorkspaceRetention";
 import {
   SidebarInset,
   SidebarProvider,
-  SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
 import { SideNav } from "@/components/SideNav";
+import { SidebarTabNavigation } from "@/components/SidebarTabNavigation";
+import { MessageRulesRuntime } from "@/components/MessageRulesRuntime";
+import { AttentionRuntime } from "@/components/AttentionRuntime";
+import { SlashCommandRuntime } from "@/components/SlashCommandRuntime";
 import { SidebarRight } from "@/components/SidebarRight";
 import { chatSidebarWidthCss } from "@/components/chat-sidebar-width";
 import { cn } from "@/utils";
@@ -18,21 +29,27 @@ const CrispWithNoSSR = dynamic(() => import("@/components/CrispChat"));
 
 function ContentWrapper({ children }: { children: React.ReactNode }) {
   const { state } = useSidebar();
-  const pathname = usePathname();
+  const pathname = useVisibleWorkspacePathname();
   const isAssistantRoute = pathname?.includes("/assistant");
   const isMailRoute = pathname?.includes("/mail");
+  const isAgentsRoute =
+    pathname?.includes("/agents") ||
+    pathname?.includes("/messages") ||
+    pathname?.includes("/contacts") ||
+    pathname?.includes("/todo") ||
+    pathname?.includes("/notes");
   const isRightSidebarOpen =
     !isAssistantRoute && state.includes("chat-sidebar");
 
   // The padding only exists to clear the fixed MobileHeader, which neither of
-  // these routes renders — on mail it showed up as a blank strip above the
+  // these routes renders â€” on mail it showed up as a blank strip above the
   // screen's own sidebar and toolbar.
   const noTopPadding = isAssistantRoute || isMailRoute;
 
   return (
     <div
       className={cn(
-        "min-w-0 flex-1 transition-all duration-200 ease-linear",
+        "min-w-0 flex-1 transition-[margin-right] duration-200 ease-linear",
         isRightSidebarOpen && "lg:mr-[--chat-sidebar-width]",
       )}
     >
@@ -42,6 +59,7 @@ function ContentWrapper({ children }: { children: React.ReactNode }) {
           // stops sticky descendants from sticking to the page scroll
           "overflow-clip bg-background pt-9 max-w-full",
           noTopPadding && "pt-0",
+          isAgentsRoute && "lg:pt-0",
           // The mail page fills the viewport and scrolls its thread list
           // internally, so layout banners shrink it instead of overflowing
           isMailRoute && "h-svh",
@@ -59,15 +77,17 @@ function ContentWrapper({ children }: { children: React.ReactNode }) {
 export function SideNavWithTopNav({
   children,
   defaultOpen,
-  feedbackEnabled,
   chatSidebarWidth,
+  sidebarWidth,
 }: {
   children: React.ReactNode;
   defaultOpen: boolean;
   feedbackEnabled: boolean;
   chatSidebarWidth: number;
+  sidebarWidth: number;
 }) {
-  const pathname = usePathname();
+  const pathname = useVisibleWorkspacePathname();
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   // Dragging writes straight to the CSS variable the chat panel and the page
   // margin beside it both read, rather than re-rendering the app on every
   // pointer move.
@@ -97,8 +117,12 @@ export function SideNavWithTopNav({
   return (
     <SidebarProvider
       ref={frameRef}
+      className="mail-account-theme"
       style={
         {
+          "--mail-hue": 0,
+          "--mail-saturation": "0%",
+          "--mail-sidebar-width": `${sidebarWidth}px`,
           "--chat-sidebar-width": chatSidebarWidthCss(chatSidebarWidth),
         } as CSSProperties
       }
@@ -110,11 +134,18 @@ export function SideNavWithTopNav({
           the global navigation and its mobile header would be duplicates. */}
       {!isMailRoute && (
         <>
-          <MobileHeader />
-          <SideNav name="left-sidebar" feedbackEnabled={feedbackEnabled} />
+          <MobileHeader onOpen={() => setMobileNavOpen(true)} />
+          <SideNav
+            isMobileNavOpen={mobileNavOpen}
+            onMobileNavOpenChange={setMobileNavOpen}
+          />
         </>
       )}
       <ContentWrapper>{children}</ContentWrapper>
+      <SidebarTabNavigation />
+      <MessageRulesRuntime />
+      <AttentionRuntime />
+      <SlashCommandRuntime />
       {!isAssistantRoute ? (
         <SidebarRight name="chat-sidebar" onResize={setChatSidebarWidth} />
       ) : null}
@@ -122,14 +153,19 @@ export function SideNavWithTopNav({
   );
 }
 
-function MobileHeader() {
+function MobileHeader({ onOpen }: { onOpen: () => void }) {
   return (
-    <header className="pointer-events-none fixed top-0 left-0 right-0 z-50 h-9 md:hidden">
+    <header className="pointer-events-none fixed top-0 left-0 right-0 z-50 h-9 lg:hidden">
       <div className="flex h-full items-center px-4">
-        <SidebarTrigger
-          name="left-sidebar"
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label="Open navigation"
+          onClick={onOpen}
           className="pointer-events-auto size-6"
-        />
+        >
+          <PanelLeft className="size-4" />
+        </Button>
       </div>
     </header>
   );

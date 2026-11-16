@@ -78,7 +78,10 @@ describe("bulk email tagging", () => {
       messages.map((_, i) => [i % 2]),
     );
     const request = generate.mock.calls[0][0];
-    expect(request.headers).toEqual({ "x-inbox-zero-workload": "backfill" });
+    expect(request.headers).toEqual({
+      "x-inbox-zero-workload": "backfill",
+      "x-inbox-zero-items": "10",
+    });
     expect(JSON.parse(request.prompt).emails).toHaveLength(10);
   });
 

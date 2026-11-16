@@ -5,10 +5,48 @@ import {
   EMAIL_DOCUMENT_MARKER,
   buildMailHtmlDocument,
   getMailHtmlDocumentKey,
+  shouldApplyDarkMailTheme,
 } from "./MailBody";
 import { sanitizeMailHtml } from "./sanitize-html";
 
 describe("sanitizeMailHtml", () => {
+  it.each([
+    '<div>Hello</div><blockquote style="margin:0;border-left:1px solid #ccc">Earlier reply<img style="display:none" src="https://example.com/pixel"></blockquote>',
+    '<body bgcolor="white"><p style="font-family:Arial;color:#000;background-color:white"><span style="background:#fff">Ordinary message</span></p></body>',
+  ])("uses dark mode for conversations with incidental inline styling", (html) => {
+    expect(shouldApplyDarkMailTheme(html, true)).toBe(true);
+    expect(shouldApplyDarkMailTheme(html, false)).toBe(false);
+  });
+
+  it("themes table layouts, style blocks and inline important colors in dark mode", () => {
+    const html =
+      '<html><head><style>#card { background:white!important; color:black!important }</style></head><body bgcolor="white"><table><tr><td id="card" style="background:#fff!important;color:#000!important">Readable content<img src="data:image/png;base64,aA=="></td></tr></table></body></html>';
+    expect(shouldApplyDarkMailTheme(html, true)).toBe(true);
+    const output = buildMailHtmlDocument({
+      html,
+      isDarkMode: true,
+      imageProxyBaseUrl: null,
+      imageProxyOrigin: null,
+      documentKey: "all-layouts",
+      darkBackgroundHsl: "165 14% 16%",
+    });
+    const doc = new DOMParser().parseFromString(output, "text/html");
+    expect(doc.querySelector("#card")?.getAttribute("style")).toContain(
+      "background: transparent !important",
+    );
+    expect(doc.querySelector("#card")?.getAttribute("style")).toContain(
+      "color: inherit !important",
+    );
+    expect(doc.querySelector("table")).not.toBeNull();
+    expect(doc.querySelector("img")?.getAttribute("src")).toBe(
+      "data:image/png;base64,aA==",
+    );
+    expect(doc.body.textContent).toBe("Readable content");
+    expect(doc.documentElement.style.getPropertyValue("--background")).toBe(
+      "165 14% 16%",
+    );
+  });
+
   it("replaces a buffered dark document when its account palette changes", () => {
     const html = "<p>Same conversation body</p>";
     expect(getMailHtmlDocumentKey(html, true, "165 14% 16%")).not.toBe(

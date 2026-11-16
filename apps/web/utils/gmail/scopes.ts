@@ -1,6 +1,7 @@
 import { env } from "@/env";
 
-const GOOGLE_CONTACTS_SCOPE = "https://www.googleapis.com/auth/contacts";
+const GOOGLE_CONTACTS_SCOPE =
+  "https://www.googleapis.com/auth/contacts.readonly";
 const GOOGLE_OTHER_CONTACTS_SCOPE =
   "https://www.googleapis.com/auth/contacts.other.readonly";
 

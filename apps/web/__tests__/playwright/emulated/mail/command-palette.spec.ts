@@ -207,8 +207,11 @@ test("Command K acts on highlighted and selected conversations", async ({
   await expect(palette).toBeHidden();
 
   await conversations
-    .getByRole("checkbox", { name: "Select conversation with Alice Example" })
+    .getByRole("option")
+    .filter({ hasText: "Alice Example" })
+    .first()
     .click();
+  await page.keyboard.press("KeyX");
   await conversations
     .getByRole("checkbox", { name: "Select conversation with Bob Example" })
     .click();
@@ -241,8 +244,11 @@ test("Command K acts on highlighted and selected conversations", async ({
     )
     .toMatchObject({ status: "succeeded", payload: { read: true } });
   await conversations
-    .getByRole("checkbox", { name: "Select conversation with Alice Example" })
+    .getByRole("option")
+    .filter({ hasText: "Alice Example" })
+    .first()
     .click();
+  await page.keyboard.press("KeyX");
   await conversations
     .getByRole("checkbox", { name: "Select conversation with Bob Example" })
     .click();
@@ -466,10 +472,12 @@ async function ensureReadState(
   sender: string,
   read: boolean,
 ) {
-  const checkbox = conversations.getByRole("checkbox", {
-    name: `Select conversation with ${sender}`,
-  });
-  await checkbox.click();
+  await conversations
+    .getByRole("option")
+    .filter({ hasText: sender })
+    .first()
+    .click();
+  await page.keyboard.press("KeyX");
   const selectionCount = page.getByText("1 selected", { exact: true });
   await expect(selectionCount).toBeVisible();
   await page.keyboard.press(`${commandModifier}+KeyK`);

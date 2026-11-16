@@ -1,4 +1,5 @@
 "use client";
+import { retainWorkspacePage } from "@/components/retain-workspace-page";
 
 import { useForm, type SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -19,7 +20,7 @@ import { useAccount } from "@/providers/EmailAccountProvider";
 import { PageHeader } from "@/components/PageHeader";
 import { PageWrapper } from "@/components/PageWrapper";
 
-export default function CreateOrganizationPage() {
+function CreateOrganizationPage() {
   const router = useRouter();
   const { isLoading, mutate, error } = useUser();
   const { emailAccountId } = useAccount();
@@ -96,3 +97,5 @@ export default function CreateOrganizationPage() {
     </PageWrapper>
   );
 }
+
+export default retainWorkspacePage(CreateOrganizationPage);

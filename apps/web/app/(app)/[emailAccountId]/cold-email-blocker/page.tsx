@@ -1,3 +1,4 @@
+import { retainWorkspacePage } from "@/components/retain-workspace-page";
 import { Suspense } from "react";
 import { PermissionsCheck } from "@/app/(app)/[emailAccountId]/PermissionsCheck";
 import { EmailLabelsProvider } from "@/providers/EmailLabelsProvider";
@@ -5,7 +6,7 @@ import { ColdEmailContent } from "@/app/(app)/[emailAccountId]/cold-email-blocke
 import { PageWrapper } from "@/components/PageWrapper";
 import { PageHeader } from "@/components/PageHeader";
 
-export default function ColdEmailBlockerPage() {
+function ColdEmailBlockerPage() {
   return (
     <PageWrapper>
       <PageHeader
@@ -28,3 +29,5 @@ export default function ColdEmailBlockerPage() {
     </PageWrapper>
   );
 }
+
+export default retainWorkspacePage(ColdEmailBlockerPage);

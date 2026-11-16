@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { SettingsIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ActionCard } from "@/components/ui/card";
@@ -14,6 +15,9 @@ import {
 export function AllRulesDisabledBanner() {
   const { data: rules, isLoading } = useRules();
   const { emailAccountId } = useAccount();
+  const domain = useSearchParams().get("domain");
+
+  if (domain && domain !== "mail") return null;
 
   if (isLoading || !rules) return null;
 

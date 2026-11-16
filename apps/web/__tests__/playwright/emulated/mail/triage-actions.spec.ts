@@ -22,9 +22,8 @@ test("archives a selected conversation and restores it with undo", async ({
     "Archive Action Message",
   );
 
-  await archiveConversation
-    .getByRole("checkbox", { name: "Select conversation with Erin Example" })
-    .click();
+  await archiveConversation.click();
+  await page.keyboard.press("KeyX");
   await expect(page.getByText("1 selected", { exact: true })).toBeVisible();
   await expect(
     page
@@ -342,8 +341,8 @@ test("selects and clears all conversations from the split tabs row", async ({
   });
   await expect(selectAll).toBeHidden();
 
-  await options.first().hover();
-  await options.first().getByRole("checkbox").click();
+  await options.first().click();
+  await page.keyboard.press("KeyX");
   await expect(selectAll).toHaveAttribute("aria-checked", "mixed");
 
   await selectAll.click();

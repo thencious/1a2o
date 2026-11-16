@@ -1,0 +1,14 @@
+{
+  "name": "onea2o-private-sync",
+  "main": "src/index.mjs",
+  "compatibility_date": "2026-11-01",
+  "workers_dev": true,
+  "vars": { "CLIENT_ORIGINS": "https://your-1a2o.example.com" },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "onea2o-private-sync",
+      "database_id": "REPLACE_WITH_YOUR_DATABASE_ID"
+    }
+  ]
+}

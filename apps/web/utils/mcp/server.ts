@@ -10,6 +10,7 @@ import { ruleRequestBodySchema } from "@/app/api/v1/rules/validation";
 import { BRAND_NAME } from "@/utils/branding";
 import { createEmailProvider } from "@/utils/email/provider";
 import { createScopedLogger } from "@/utils/logger";
+import { zenroRegistry } from "@/utils/ai/assistant/zenro-registry";
 import prisma from "@/utils/prisma";
 import { createRule, deleteRule, updateRule } from "@/utils/rule/rule";
 import {
@@ -501,6 +502,43 @@ export async function handleMcpServerRequest(
   );
 
   registerMailClient(server, session, toolLogger);
+
+  for (const [name, action] of Object.entries(
+    zenroRegistry(userId, toolLogger),
+  )) {
+    server.registerTool(
+      `zenro_${name.replaceAll(".", "_")}`,
+      {
+        description: `${action.description}\nInput JSON schema: ${JSON.stringify(z.toJSONSchema(action.schema, { unrepresentable: "any" }))}`,
+        inputSchema: {
+          input: z
+            .string()
+            .describe(
+              "JSON object matching the input schema in this tool's description.",
+            ),
+        },
+        annotations: {
+          readOnlyHint: !action.writes,
+          destructiveHint: action.writes,
+          openWorldHint: true,
+        },
+      },
+      async ({ input }) => {
+        assertMcpScope(
+          session.scopes,
+          action.writes ? "mcp:write" : "mcp:read",
+        );
+        if (action.writes && /send|reply|forward|agents[.]command/.test(name))
+          assertMcpScope(session.scopes, "mcp:send");
+        const result = await action.run(JSON.parse(input));
+        return {
+          content: [
+            { type: "text" as const, text: JSON.stringify(result ?? null) },
+          ],
+        };
+      },
+    );
+  }
 
   const transport = new WebStandardStreamableHTTPServerTransport({
     sessionIdGenerator: undefined,

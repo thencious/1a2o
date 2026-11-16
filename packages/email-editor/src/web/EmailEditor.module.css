@@ -45,6 +45,23 @@
   outline: none;
 }
 
+/* Draft HTML can carry explicit black text. Keep its display tied to the
+   editor palette without changing the HTML that gets saved or sent. */
+.editor [data-email-editor-content] {
+  color: var(--email-editor-foreground) !important;
+  -webkit-text-fill-color: var(--email-editor-foreground) !important;
+}
+
+.editor [data-email-editor-content] * {
+  color: inherit !important;
+  -webkit-text-fill-color: inherit !important;
+}
+
+[class~="dark"] .editor [data-email-editor-content],
+[class~="dark"] .editor [data-email-editor-content] * {
+  background-color: transparent !important;
+}
+
 .surface[data-email-editor-appearance="seamless"] .editor > div {
   display: flex;
   flex-direction: column;
@@ -264,7 +281,7 @@
 .quotePreview {
   width: 100%;
   height: 12rem;
-  background: #fff;
+  background: var(--email-editor-background);
   border: 0;
 }
 

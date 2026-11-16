@@ -7,7 +7,8 @@ import {
   CALENDAR_STATE_COOKIE_NAME,
 } from "@/utils/calendar/constants";
 import { validateSignedOAuthState } from "@/utils/oauth/state";
-import { normalizeInternalPath, prefixPath } from "@/utils/path";
+import { normalizeInternalPath } from "@/utils/path";
+import { calendarSettingsPath } from "./settings-path";
 import { env } from "@/env";
 import type { Logger } from "@/utils/logger";
 import type {
@@ -18,6 +19,7 @@ import type {
 import { RedirectError } from "@/utils/oauth/redirect";
 
 const calendarOAuthStateSchema = z.object({
+  requireWrite: z.boolean().optional(),
   emailAccountId: z.string().min(1).max(64),
   type: z.literal("calendar"),
   nonce: z.string().min(8).max(128),
@@ -38,7 +40,10 @@ export async function validateOAuthCallback(
   const receivedState = searchParams.get("state");
   const storedState = request.cookies.get(CALENDAR_STATE_COOKIE_NAME)?.value;
 
-  const baseRedirectUrl = new URL("/calendars", env.NEXT_PUBLIC_BASE_URL);
+  const baseRedirectUrl = new URL(
+    calendarSettingsPath(),
+    env.NEXT_PUBLIC_BASE_URL,
+  );
   const response = NextResponse.redirect(baseRedirectUrl);
 
   response.cookies.delete(CALENDAR_STATE_COOKIE_NAME);
@@ -143,7 +148,7 @@ export function getCalendarRedirectPath(
   emailAccountId: string,
   onboardingReturnPath?: string,
 ): string {
-  const defaultPath = prefixPath(emailAccountId, "/calendars");
+  const defaultPath = calendarSettingsPath(emailAccountId);
   if (!onboardingReturnPath) return defaultPath;
 
   let decodedPath: string;

@@ -1,3 +1,4 @@
+import { newsletterKey } from "./identity";
 import { useCallback, useMemo, useState } from "react";
 import { usePostHog } from "posthog-js/react";
 import {
@@ -172,20 +173,14 @@ export function BulkActions({
     emailAccountId,
   });
 
-  const getSelectedValues = () =>
-    Array.from(selected.entries())
-      .filter(([, value]) => value)
-      .map(([name, value]) => ({
-        name,
-        value,
-      }));
+  const getSelectedValues = () => selectedNewsletters;
 
   const selectedCount = Array.from(selected.values()).filter(Boolean).length;
   const isVisible = selectedCount > 0;
 
   // Get the selected newsletters with their details
   const selectedNewsletters =
-    newsletters?.filter((n) => selected.get(n.name)) || [];
+    newsletters?.filter((n) => selected.get(newsletterKey(n))) || [];
 
   // Check if all selected newsletters are already approved
   const allSelectedAreApproved = useMemo(() => {
@@ -329,7 +324,7 @@ export function BulkActions({
               <div className="divide-y divide-gray-100 dark:divide-gray-800">
                 {selectedNewsletters.map((newsletter) => (
                   <div
-                    key={newsletter.name}
+                    key={newsletterKey(newsletter)}
                     className="flex items-center gap-3 px-3 py-2"
                   >
                     <SenderIcon
@@ -341,6 +336,11 @@ export function BulkActions({
                       <span className="font-medium text-sm truncate">
                         {newsletter.fromName || newsletter.name}
                       </span>
+                      {newsletter.userEmail && (
+                        <span className="text-xs text-muted-foreground">
+                          {newsletter.userEmail}
+                        </span>
+                      )}
                       {newsletter.fromName && (
                         <span className="text-xs text-muted-foreground truncate">
                           {newsletter.name}
@@ -389,7 +389,7 @@ export function BulkActions({
               <div className="divide-y divide-gray-100 dark:divide-gray-800">
                 {selectedNewsletters.map((newsletter) => (
                   <div
-                    key={newsletter.name}
+                    key={newsletterKey(newsletter)}
                     className="flex items-center gap-3 px-3 py-2"
                   >
                     <SenderIcon
@@ -401,6 +401,11 @@ export function BulkActions({
                       <span className="font-medium text-sm truncate">
                         {newsletter.fromName || newsletter.name}
                       </span>
+                      {newsletter.userEmail && (
+                        <span className="text-xs text-muted-foreground">
+                          {newsletter.userEmail}
+                        </span>
+                      )}
                       {newsletter.fromName && (
                         <span className="text-xs text-muted-foreground truncate">
                           {newsletter.name}

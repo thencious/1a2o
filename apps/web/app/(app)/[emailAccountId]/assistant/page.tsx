@@ -1,3 +1,4 @@
+import { retainWorkspacePage } from "@/components/retain-workspace-page";
 import { Suspense } from "react";
 import { PermissionsCheck } from "@/app/(app)/[emailAccountId]/PermissionsCheck";
 import { EmailLabelsProvider } from "@/providers/EmailLabelsProvider";
@@ -6,7 +7,7 @@ import { checkUserOwnsEmailAccount } from "@/utils/email-account";
 
 export const maxDuration = 300; // Applies to the actions
 
-export default async function AssistantPage({
+async function AssistantPage({
   params,
 }: {
   params: Promise<{ emailAccountId: string }>;
@@ -26,3 +27,5 @@ export default async function AssistantPage({
     </EmailLabelsProvider>
   );
 }
+
+export default retainWorkspacePage(AssistantPage);

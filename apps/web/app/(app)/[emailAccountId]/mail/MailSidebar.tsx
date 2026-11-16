@@ -2,6 +2,15 @@
 
 import { type FormEvent, type ReactNode, useEffect, useState } from "react";
 import Link from "next/link";
+import {
+  useRevealWorkspace,
+  useVisibleWorkspacePathname,
+  useWorkspaceHref,
+} from "@/components/WorkspaceRetention";
+import { ReorderableSidebarTabs } from "@/components/ReorderableSidebarTabs";
+import { useNavigation } from "@/hooks/useAppNavigation";
+import { useAttention } from "@/hooks/useAttention";
+import type { AttentionTab } from "@/utils/attention/types";
 import { getMailSidebarRowPresentation } from "@inboxzero/mail-ui/MailSidebarRow";
 import {
   ArchiveIcon,
@@ -15,7 +24,7 @@ import {
   type LucideIcon,
   MegaphoneIcon,
   MessagesSquareIcon,
-  PenLineIcon,
+  MessageSquareIcon,
   PlusIcon,
   SendIcon,
   SettingsIcon,
@@ -28,10 +37,10 @@ import {
   Users2Icon,
 } from "lucide-react";
 import type { MailboxLabelCount } from "@/utils/mail-engine/label-count-targets";
-import { Tooltip as ShortcutTooltip } from "@/components/Tooltip";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AppSidebarHeader } from "@/components/AppSidebarHeader";
+import { useSidebarGroups } from "@/components/SidebarTabNavigation";
 import {
   Tooltip,
   TooltipContent,
@@ -40,6 +49,7 @@ import {
 import type { EmailLabel } from "@/providers/email-label-types";
 import { GmailLabel } from "@/utils/gmail/label";
 import { cn } from "@/utils";
+import { prefixPath } from "@/utils/path";
 import type { OutlookFolder } from "@/utils/outlook/folders";
 import { OUTLOOK_INBOX_SECTIONS } from "@/utils/outlook/inbox-sections";
 import { getLabelTree, type SidebarLabel } from "./label-tree";
@@ -80,7 +90,6 @@ export type MailSidebarProps = {
   /** Builds the app section links in the shared sidebar header. */
   emailAccountId: string;
   hideToggle?: boolean;
-  onCompose: () => void;
   onOpenSettings: () => void;
   onCreateLabel: (name: string) => void;
   onEditMailboxItem: (edit: MailboxItemEdit) => Promise<boolean>;
@@ -124,6 +133,13 @@ const MAILBOX_ITEMS: SystemItem[] = [
   },
   { name: "Spam", type: "spam", countId: null, Icon: ShieldAlertIcon },
   { name: "Trash", type: "trash", countId: null, Icon: Trash2Icon },
+];
+
+const MAIL_FOLDER_ITEMS: SystemItem[] = [
+  { name: "Sent items", type: "sent", countId: null, Icon: SendIcon },
+  { name: "Drafts", type: "draft", countId: "DRAFT", Icon: FileIcon },
+  { name: "Archive", type: "archive", countId: null, Icon: ArchiveIcon },
+  { name: "Deleted items", type: "trash", countId: "TRASH", Icon: Trash2Icon },
 ];
 
 export type MailCategory = {
@@ -179,9 +195,8 @@ export function MailSidebar({
   categoryHeading,
   labelsHeading,
   labelSingular,
-  emailAccountId,
   hideToggle,
-  onCompose,
+  emailAccountId,
   onOpenSettings,
   onCreateLabel,
   onEditMailboxItem,
@@ -196,6 +211,14 @@ export function MailSidebar({
   unified = false,
   className,
 }: MailSidebarProps) {
+  const navigation = useNavigation();
+  const chatHref = useWorkspaceHref(
+    `${prefixPath(emailAccountId, "/assistant")}?accountScope=${unified ? "all" : "single"}`,
+  );
+  const { data: attention } = useAttention();
+  const pathname = useVisibleWorkspacePathname();
+  const { groups, toggleGroup } = useSidebarGroups();
+  const showTools = groups.tools;
   const [isAddingLabel, setIsAddingLabel] = useState(false);
   const [newLabelName, setNewLabelName] = useState("");
   const sidebarFolders = getMailSidebarFolders(folders);
@@ -271,60 +294,47 @@ export function MailSidebar({
         className,
       )}
     >
-      <AppSidebarHeader
-        active="mail"
-        emailAccountId={emailAccountId}
-        collapsed={collapsed}
-        hideToggle={hideToggle}
-      />
+      <AppSidebarHeader collapsed={collapsed} hideToggle={hideToggle} />
 
-      <ShortcutTooltip
-        shortcuts={[{ id: "compose", label: "Compose" }]}
-        showShortcutLabels={collapsed}
-        side={collapsed ? "right" : "bottom"}
+      <Button
+        variant="gradient"
+        size={collapsed ? "icon" : "default"}
+        asChild
+        className={
+          collapsed
+            ? "mb-2 size-8 shrink-0 self-center rounded-lg"
+            : "mb-3.5 w-full shrink-0 justify-start gap-2 rounded-xl px-3"
+        }
       >
-        {collapsed ? (
-          <Button
-            variant="gradient"
-            size="icon"
-            onClick={onCompose}
-            aria-label="Compose"
-            className="mb-2 size-8 shrink-0 self-center rounded-lg"
-          >
-            <PenLineIcon className="size-4" />
-          </Button>
-        ) : (
-          <Button
-            variant="gradient"
-            onClick={onCompose}
-            className="mb-3.5 w-full shrink-0 justify-start gap-2 rounded-xl px-3"
-          >
-            <PenLineIcon className="size-4 shrink-0" />
-            Compose
-          </Button>
-        )}
-      </ShortcutTooltip>
+        <Link href={chatHref} onNavigate={onNavigate} aria-label="Chat">
+          <MessageSquareIcon className="size-4 shrink-0" />
+          {!collapsed && "Chat"}
+        </Link>
+      </Button>
 
       {/* The negative margin lets the scrollbar sit in the sidebar's own
           padding, so a platform-width bar can't crowd the unread counts. */}
       <div className="-mr-1.5 flex min-h-0 flex-1 flex-col overflow-y-auto pr-1.5 scrollbar-thin">
-        <nav className="flex flex-col gap-px">
-          <NavRow
-            href={
-              unified ? undefined : hrefFor({ kind: "type", type: "inbox" })
-            }
-            onNavigate={onNavigate}
-            active={
-              unified ||
-              (!activeLabelId && !activeFolderId && activeType === "inbox")
-            }
-            icon={<InboxIcon className="size-4 shrink-0" />}
-            name={unified ? "All inboxes" : "Inbox"}
-            count={unified ? null : displayCount(countsById.get("INBOX"))}
-            emphasizeCount
-            collapsed={collapsed}
-          />
-        </nav>
+        {!unified && (
+          <nav className="flex flex-col gap-px">
+            <NavRow
+              href={
+                unified ? undefined : hrefFor({ kind: "type", type: "inbox" })
+              }
+              onNavigate={onNavigate}
+              active={
+                pathname.includes("/mail") &&
+                (unified ||
+                  (!activeLabelId && !activeFolderId && activeType === "inbox"))
+              }
+              icon={<InboxIcon className="size-4 shrink-0" />}
+              name="Inbox"
+              count={unified ? null : displayCount(countsById.get("INBOX"))}
+              emphasizeCount
+              collapsed={collapsed}
+            />
+          </nav>
+        )}
 
         {!unified && (!collapsed || showMailboxRows) && (
           <>
@@ -551,6 +561,129 @@ export function MailSidebar({
             ) : null}
           </>
         ) : null}
+        <ReorderableSidebarTabs
+          items={[
+            ...navigation.manageItems.map((item) => ({
+              id: item.id,
+              name: item.name,
+              handle: (
+                <div className="relative">
+                  <NavRow
+                    key={item.href}
+                    href={item.href}
+                    onNavigate={onNavigate}
+                    active={
+                      pathname === item.href.split("?")[0] ||
+                      pathname.startsWith(`${item.href.split("?")[0]}/`)
+                    }
+                    icon={<item.icon className="size-3.5 shrink-0" />}
+                    name={item.name}
+                    attentionDot={Boolean(
+                      attention?.counts[item.id as AttentionTab],
+                    )}
+                    count={item.count ?? null}
+                    collapsed={collapsed}
+                  />
+                  {item.name === "Mail" && (
+                    <button
+                      type="button"
+                      aria-label={`${groups.mail ? "Collapse" : "Expand"} Mail folders`}
+                      aria-expanded={groups.mail}
+                      onClick={() => toggleGroup("mail")}
+                      className={cn(
+                        "flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                        collapsed
+                          ? "mx-auto"
+                          : "absolute right-0.5 top-1/2 -translate-y-1/2",
+                      )}
+                    >
+                      {groups.mail ? (
+                        <ChevronDownIcon className="size-3" />
+                      ) : (
+                        <ChevronRightIcon className="size-3" />
+                      )}
+                    </button>
+                  )}
+                </div>
+              ),
+              children: item.name === "Mail" && groups.mail && (
+                <nav
+                  aria-label="Mail folders"
+                  className={cn(
+                    "flex flex-col gap-px",
+                    !collapsed && "ml-3 border-l border-border/60 pl-1",
+                  )}
+                >
+                  {MAIL_FOLDER_ITEMS.filter(
+                    (folder) =>
+                      folder.type !== "trash" ||
+                      (countsById.get("TRASH")?.total ?? 0) > 0,
+                  ).map(({ name, type, countId, Icon }) => (
+                    <NavRow
+                      key={type}
+                      href={`${prefixPath(emailAccountId, "/mail")}?accountScope=${unified ? "all" : "single"}&type=${type}`}
+                      onNavigate={onNavigate}
+                      active={
+                        pathname.includes("/mail") &&
+                        !activeLabelId &&
+                        !activeFolderId &&
+                        activeType === type
+                      }
+                      icon={<Icon className="size-3.5 shrink-0" />}
+                      name={name}
+                      count={
+                        countId
+                          ? (countsById.get(countId)?.total ?? null)
+                          : null
+                      }
+                      collapsed={collapsed}
+                    />
+                  ))}
+                  {collapsed && (
+                    <div
+                      aria-hidden="true"
+                      className="mx-auto my-2 h-px w-6 bg-border"
+                    />
+                  )}
+                </nav>
+              ),
+            })),
+            {
+              id: "tools",
+              name: "Tools",
+              handle: (
+                <GroupHeading
+                  section="tools"
+                  collapsed={collapsed}
+                  expanded={showTools}
+                  onToggle={() => toggleGroup("tools")}
+                >
+                  Tools
+                </GroupHeading>
+              ),
+              children: showTools && (
+                <nav
+                  data-section-navigation
+                  aria-label="Tools"
+                  className="flex flex-col gap-px"
+                >
+                  {navigation.moreItems.map((item) => (
+                    <NavRow
+                      key={item.href}
+                      href={item.href}
+                      onNavigate={onNavigate}
+                      active={false}
+                      icon={<item.icon className="size-3.5 shrink-0" />}
+                      name={item.name}
+                      count={item.count ?? null}
+                      collapsed={collapsed}
+                    />
+                  ))}
+                </nav>
+              ),
+            },
+          ]}
+        />
       </div>
       <nav className="flex shrink-0 flex-col gap-px pt-2">
         {team && (
@@ -705,12 +838,14 @@ function LabelBranch({
 }
 
 function GroupHeading({
+  section,
   children,
   action,
   expanded,
   onToggle,
   collapsed,
 }: {
+  section?: string;
   children: ReactNode;
   action?: ReactNode;
   expanded?: boolean;
@@ -718,12 +853,31 @@ function GroupHeading({
   collapsed?: boolean;
 }) {
   // A heading can't fit in the rail, so groups are separated by a rule instead.
-  if (collapsed) return <div className="mx-auto my-2 h-px w-6 bg-border" />;
+  if (collapsed)
+    return section ? (
+      <button
+        type="button"
+        data-section-group={section}
+        aria-label={String(children)}
+        aria-expanded={expanded}
+        onClick={onToggle}
+        className="mx-auto my-2 rounded p-1 text-muted-foreground hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        {expanded ? (
+          <ChevronDownIcon className="size-4" />
+        ) : (
+          <ChevronRightIcon className="size-4" />
+        )}
+      </button>
+    ) : (
+      <div className="mx-auto my-2 h-px w-6 bg-border" />
+    );
 
   return (
     <div className="flex items-center gap-1 px-2.5 pt-4 pb-1.5">
       {onToggle ? (
         <button
+          data-section-group={section}
           type="button"
           onClick={onToggle}
           aria-expanded={expanded}
@@ -767,6 +921,7 @@ function NavRow({
   emphasizeCount,
   nested,
   collapsed,
+  attentionDot,
 }: {
   href?: string;
   /** For rows that open something in place rather than navigating. */
@@ -779,7 +934,9 @@ function NavRow({
   emphasizeCount?: boolean;
   nested?: boolean;
   collapsed?: boolean;
+  attentionDot?: boolean;
 }) {
+  const revealWorkspace = useRevealWorkspace();
   const presentation = getMailSidebarRowPresentation({
     active,
     icon,
@@ -789,15 +946,30 @@ function NavRow({
     nested,
     collapsed,
   });
-  const className = cn(presentation.className);
-  const content = presentation.content;
+  const className = cn(presentation.className, "relative");
+  const content = (
+    <>
+      {presentation.content}
+      {attentionDot && (
+        <span
+          role="status"
+          aria-label={`${name} needs attention`}
+          className="absolute right-1.5 top-1.5 size-1.5 rounded-full bg-orange-400"
+        />
+      )}
+    </>
+  );
 
   let row: ReactNode;
   if (href) {
     row = (
       <Link
         href={href}
-        onNavigate={onNavigate}
+        prefetch={name === "Mail" ? true : undefined}
+        onNavigate={() => {
+          revealWorkspace?.(href);
+          onNavigate();
+        }}
         aria-current={active ? "page" : undefined}
         className={className}
       >

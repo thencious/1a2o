@@ -5,7 +5,16 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { after } from "next/server";
 import localFont from "next/font/local";
+import {
+  WorkspaceRetentionProvider,
+  WorkspaceRetentionOutlet,
+} from "@/components/WorkspaceRetention";
 import { SideNavWithTopNav } from "@/components/SideNavWithTopNav";
+import {
+  MAIL_SIDEBAR_DEFAULT_WIDTH,
+  MAIL_SIDEBAR_WIDTH_BOUNDS,
+  MAIL_SIDEBAR_WIDTH_COOKIE,
+} from "@/app/(app)/[emailAccountId]/mail/panel-widths";
 import {
   CHAT_SIDEBAR_DEFAULT_WIDTH,
   CHAT_SIDEBAR_WIDTH_BOUNDS,
@@ -52,7 +61,6 @@ export const metadata: Metadata = {
 };
 
 export const viewport = {
-  themeColor: "#FFF",
   // safe area for iOS PWA
   userScalable: false,
   initialScale: 1,
@@ -74,6 +82,11 @@ export default async function AppLayout({
 
   const cookieStore = await cookies();
   const isClosed = cookieStore.get("left-sidebar:state")?.value === "false";
+  const sidebarWidth =
+    parsePanelWidthCookie(
+      cookieStore.get(MAIL_SIDEBAR_WIDTH_COOKIE)?.value,
+      MAIL_SIDEBAR_WIDTH_BOUNDS,
+    ) ?? MAIL_SIDEBAR_DEFAULT_WIDTH;
   const chatSidebarWidth =
     parsePanelWidthCookie(
       cookieStore.get(CHAT_SIDEBAR_WIDTH_COOKIE)?.value,
@@ -103,18 +116,21 @@ export default async function AppLayout({
       <div className="font-inter">
         <AppProviders>
           <MailEngineRuntime>
-            <SideNavWithTopNav
-              defaultOpen={!isClosed}
-              feedbackEnabled={feedbackEnabled}
-              chatSidebarWidth={chatSidebarWidth}
-            >
-              <DesktopMailIndicators />
-              <DesktopUpdateToast />
-              <AiAutomationStatusBanner />
-              <ErrorMessages />
-              <ProviderRateLimitBanner />
-              {children}
-            </SideNavWithTopNav>
+            <WorkspaceRetentionProvider key={session.user.id}>
+              <SideNavWithTopNav
+                defaultOpen={!isClosed}
+                feedbackEnabled={feedbackEnabled}
+                chatSidebarWidth={chatSidebarWidth}
+                sidebarWidth={sidebarWidth}
+              >
+                <DesktopMailIndicators />
+                <DesktopUpdateToast />
+                <AiAutomationStatusBanner />
+                <ErrorMessages />
+                <ProviderRateLimitBanner />
+                <WorkspaceRetentionOutlet>{children}</WorkspaceRetentionOutlet>
+              </SideNavWithTopNav>
+            </WorkspaceRetentionProvider>
             <EmailViewer />
             <SettingsDialog />
             <AnnouncementDialog />

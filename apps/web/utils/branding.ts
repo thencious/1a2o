@@ -1,9 +1,10 @@
 import { env } from "@/env";
 
 export const BRAND_NAME = env.NEXT_PUBLIC_BRAND_NAME;
-export const BRAND_LOGO_URL = env.NEXT_PUBLIC_BRAND_LOGO_URL?.trim();
+export const BRAND_LOGO_URL =
+  env.NEXT_PUBLIC_BRAND_LOGO_URL?.trim() || "/branding/1a2o.png?v=1";
 export const BRAND_ICON_URL =
-  env.NEXT_PUBLIC_BRAND_ICON_URL?.trim() || "/icon.png";
+  env.NEXT_PUBLIC_BRAND_ICON_URL?.trim() || "/branding/1a2o.png?v=1";
 export const SUPPORT_EMAIL = env.NEXT_PUBLIC_SUPPORT_EMAIL;
 
 export function getBrandTitle(pageTitle: string) {

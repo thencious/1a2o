@@ -38,6 +38,12 @@ export function mailboxCountTargets(input: {
 }): MailboxCountTarget[] {
   const targets: MailboxCountTarget[] = [
     {
+      id: "TRASH",
+      name: "Deleted items",
+      kind: "system",
+      predicate: { kind: "mailbox", mailbox: "trash" },
+    },
+    {
       id: "INBOX",
       name: "Inbox",
       kind: "system",

@@ -19,12 +19,14 @@ describe("Gmail scopes", () => {
   it("requests saved contacts without Other Contacts by default", async () => {
     const { REQUIRED_SCOPES, SCOPES } = await import("./scopes");
 
-    expect(SCOPES).toContain("https://www.googleapis.com/auth/contacts");
+    expect(SCOPES).toContain(
+      "https://www.googleapis.com/auth/contacts.readonly",
+    );
     expect(SCOPES).not.toContain(
       "https://www.googleapis.com/auth/contacts.other.readonly",
     );
     expect(REQUIRED_SCOPES).not.toContain(
-      "https://www.googleapis.com/auth/contacts",
+      "https://www.googleapis.com/auth/contacts.readonly",
     );
     expect(REQUIRED_SCOPES).not.toContain(
       "https://www.googleapis.com/auth/contacts.other.readonly",
@@ -35,7 +37,9 @@ describe("Gmail scopes", () => {
     envMock.NEXT_PUBLIC_GMAIL_OTHER_CONTACTS_ENABLED = true;
     const { SCOPES } = await import("./scopes");
 
-    expect(SCOPES).toContain("https://www.googleapis.com/auth/contacts");
+    expect(SCOPES).toContain(
+      "https://www.googleapis.com/auth/contacts.readonly",
+    );
     expect(SCOPES).toContain(
       "https://www.googleapis.com/auth/contacts.other.readonly",
     );
@@ -46,7 +50,9 @@ describe("Gmail scopes", () => {
     envMock.NEXT_PUBLIC_GMAIL_OTHER_CONTACTS_ENABLED = true;
     const { SCOPES } = await import("./scopes");
 
-    expect(SCOPES).not.toContain("https://www.googleapis.com/auth/contacts");
+    expect(SCOPES).not.toContain(
+      "https://www.googleapis.com/auth/contacts.readonly",
+    );
     expect(SCOPES).not.toContain(
       "https://www.googleapis.com/auth/contacts.other.readonly",
     );

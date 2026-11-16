@@ -91,7 +91,7 @@ export function DeleteSection() {
       <ItemContent>
         <ItemTitle>Delete account</ItemTitle>
         <ItemDescription>
-          Removes your Inbox Zero data. Your emails aren't affected.
+          Removes your 1a2o data. Your emails aren't affected.
         </ItemDescription>
       </ItemContent>
       <ItemActions>
@@ -106,7 +106,7 @@ export function DeleteSection() {
               <AlertDialogTitle>
                 {shouldBlockDeletion
                   ? "Cancel subscription first"
-                  : "Delete your Inbox Zero account?"}
+                  : "Delete your 1a2o account?"}
               </AlertDialogTitle>
               <AlertDialogDescription asChild>
                 <div>
@@ -149,7 +149,7 @@ export function DeleteSection() {
                         error={accountsError}
                       >
                         <p>
-                          This permanently deletes your Inbox Zero data and
+                          This permanently deletes your 1a2o data and
                           disconnects{" "}
                           {connectedEmailParts.map((part, index) =>
                             part.type === "element" ? (

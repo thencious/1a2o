@@ -31,9 +31,7 @@ test("uses the system dark theme when opening HTML emails", async ({
   await capturePlaywrightCheckpoint(page, testInfo, "mail-reader-system-dark");
 });
 
-test("keeps designed HTML emails in their authored light palette in dark mode", async ({
-  page,
-}, testInfo) => {
+test("themes designed HTML emails in dark mode", async ({ page }, testInfo) => {
   await page.emulateMedia({ colorScheme: "dark" });
   await page.addInitScript(() => localStorage.setItem("theme", "dark"));
   const { emailAccountId } = await openMail(page);
@@ -49,13 +47,13 @@ test("keeps designed HTML emails in their authored light palette in dark mode", 
     .last();
   const card = emailFrame.getByText("Finish setup");
   await expect(card).toBeVisible();
-  await expect(emailFrame.locator("html")).toHaveCSS("color-scheme", "light");
-  await expect(emailFrame.locator("body")).toHaveCSS("color-scheme", "light");
+  await expect(emailFrame.locator("html")).toHaveCSS("color-scheme", "dark");
+  await expect(emailFrame.locator("body")).toHaveCSS("color-scheme", "dark");
   await expect(
     page.locator('iframe[title="Email content preview"]').last(),
-  ).toHaveCSS("color-scheme", "light");
-  await expect(card).toHaveCSS("background-color", "rgb(248, 249, 250)");
-  await expect(card).toHaveCSS("color", "rgb(32, 33, 36)");
+  ).toHaveCSS("color-scheme", "dark");
+  await expect(card).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+  await expect(card).toHaveCSS("color", "rgb(233, 234, 236)");
   await capturePlaywrightCheckpoint(
     page,
     testInfo,

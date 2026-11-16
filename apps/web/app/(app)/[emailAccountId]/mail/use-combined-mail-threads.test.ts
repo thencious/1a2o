@@ -1,6 +1,34 @@
 import { describe, expect, it } from "vitest";
 import { mailPredicateSchema } from "@inboxzero/mail-core/queries";
-import { labelNamesToAccountScopedPredicate } from "./use-combined-mail-threads";
+import {
+  labelNamesToAccountScopedPredicate,
+  combinedMailThreadsQuery,
+} from "./use-combined-mail-threads";
+
+describe("combined mailbox views", () => {
+  it.each([
+    "sent",
+    "draft",
+    "archive",
+  ] as const)("opens %s across accounts without applying inbox filters", (type) => {
+    expect(
+      combinedMailThreadsQuery({
+        scopeQuery: { type },
+        isUnread: true,
+        labelNames: ["Marketing"],
+      }),
+    ).toEqual({ type });
+  });
+  it("lets an explicit search override an open mailbox", () => {
+    expect(
+      combinedMailThreadsQuery({
+        scopeQuery: { type: "sent" },
+        searchQuery: "from:someone@example.com",
+        isUnread: false,
+      }),
+    ).toEqual({ q: "from:someone@example.com" });
+  });
+});
 
 describe("labelNamesToAccountScopedPredicate", () => {
   it("resolves the same label name to each account's own label id", () => {

@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <base href="/open-todo-zero/">
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="theme-color" content="#171717">
+    <title>1a2o - Tasks &amp; Notes</title>
+    <style>
+    html,
+    body {
+      height: 100%;
+      margin: 0;
+      font: 14px system-ui;
+      color: #ddd;
+      background: #171717;
+    }
+    body {
+      display: flex;
+      flex-direction: column;
+    }
+    header {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      padding: 10px 14px;
+      border-bottom: 1px solid #333;
+    }
+    strong {
+      margin-right: 12px;
+    }
+    button,
+    a {
+      padding: 7px 12px;
+      font: inherit;
+      color: #bbb;
+      text-decoration: none;
+      cursor: pointer;
+      background: transparent;
+      border: 0;
+      border-radius: 6px;
+    }
+    button[aria-pressed="true"] {
+      color: white;
+      background: #363636;
+    }
+    small {
+      margin-left: auto;
+      font-size: 11px;
+      color: #999;
+    }
+    iframe {
+      flex: 1;
+      width: 100%;
+      min-height: 0;
+      border: 0;
+    }
+    button:focus-visible,
+    a:focus-visible {
+      outline: 2px solid #aaa;
+    }
+    @media (max-width: 520px) {
+      small {
+        display: none;
+      }
+    }
+    </style>
+  </head>
+  <body>
+    <header>
+      <strong>1a2o</strong
+      ><button type="button" id="tasks" aria-pressed="true">Tasks</button
+      ><button type="button" id="notes" aria-pressed="false">Notes</button
+      ><small>Local copies - changes sync after reconnecting</small
+      ><a href="/mail">Reconnect</a>
+    </header>
+    <iframe id="workspace" title="Tasks" src="index.html?offline=1"></iframe>
+    <script src="browser-cloud-client.js?v=1"></script>
+    <script src="offline-shell.js"></script>
+  </body>
+</html>

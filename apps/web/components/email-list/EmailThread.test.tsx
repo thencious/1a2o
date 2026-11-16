@@ -19,6 +19,7 @@ import {
   organizeThreadMessages,
 } from "@/components/email-list/EmailThread";
 import { hideSendingDraftMessages } from "@/hooks/useHiddenDraftMessageIds";
+import { beginDraftSync } from "@/utils/mail-engine/draft-sync-guard";
 
 class MockResizeObserver {
   observe() {}
@@ -198,6 +199,38 @@ describe("EmailThread reply composer", () => {
   // Gmail gives a draft a new message ID each time it is saved. When sync
   // brings that replacement in, the draft being edited must keep its composer
   // and local draft instead of reopening as a different, unloaded draft.
+  it("preserves the same editor across repeated delayed autosave sync gaps", () => {
+    composerMounts = 0;
+    const parent = createReaderMessage("late-parent", "1000");
+    let draft = createReaderDraft("delayed-draft-0", "2000");
+    const renderThread = (messages: ThreadMessage[]) => (
+      <EmailThread messages={messages} refetch={vi.fn()} showReplyButton />
+    );
+    const view = render(renderThread([parent, draft]));
+    const editor = screen.getByRole("textbox", { name: "Email message" });
+    fireEvent.change(editor, { target: { value: "Uninterrupted reply" } });
+    for (let index = 1; index <= 4; index++) {
+      let release!: () => void;
+      act(() => {
+        release = beginDraftSync("account-1", parent.threadId);
+      });
+      const replacement = createReaderDraft(`delayed-draft-${index}`, "2000");
+      rememberReplacedDraftMessage("account-1", draft.id, replacement.id);
+      act(() => release());
+      view.rerender(renderThread([parent]));
+      expect(screen.getByRole("textbox", { name: "Email message" })).toBe(
+        editor,
+      );
+      view.rerender(renderThread([parent, replacement]));
+      expect(screen.getByRole("textbox", { name: "Email message" })).toBe(
+        editor,
+      );
+      expect((editor as HTMLInputElement).value).toBe("Uninterrupted reply");
+      draft = replacement;
+    }
+    expect(composerMounts).toBe(1);
+  });
+
   it("keeps editing a saved draft after Gmail replaces its message", () => {
     composerMounts = 0;
     const parent = createReaderMessage("parent", "1000");
@@ -212,7 +245,37 @@ describe("EmailThread reply composer", () => {
     const composer = screen.getByRole("textbox", { name: "Email message" });
     expect(composer.dataset.draftSessionId).toBe("draft-v1:reply");
 
+    fireEvent.change(composer, {
+      target: { value: "My replacement reply and newest edits" },
+    });
+    let finishSave!: () => void;
+    act(() => {
+      finishSave = beginDraftSync("account-1", parent.threadId);
+    });
+    // Sync can remove the old Gmail message before the save response names its replacement.
+    view.rerender(
+      <EmailThread messages={[parent]} refetch={vi.fn()} showReplyButton />,
+    );
+    expect(screen.getByRole("textbox", { name: "Email message" })).toBe(
+      composer,
+    );
+
     rememberReplacedDraftMessage("account-1", "draft-v1", "draft-v2");
+    view.rerender(
+      <EmailThread
+        messages={[parent, createReaderDraft("draft-v2", "3000")]}
+        refetch={vi.fn()}
+        showReplyButton
+      />,
+    );
+    act(() => finishSave());
+    expect(
+      (
+        screen.getByRole("textbox", {
+          name: "Email message",
+        }) as HTMLInputElement
+      ).value,
+    ).toBe("My replacement reply and newest edits");
     for (const messages of [
       [parent, createReaderDraft("draft-v2", "2000"), draftV1],
       [parent, createReaderDraft("draft-v2", "3000")],

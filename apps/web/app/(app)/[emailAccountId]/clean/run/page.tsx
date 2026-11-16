@@ -1,3 +1,4 @@
+import { retainWorkspacePage } from "@/components/retain-workspace-page";
 import { Suspense } from "react";
 import { getThreadsByJobId } from "@/utils/redis/clean";
 import prisma from "@/utils/prisma";
@@ -10,7 +11,7 @@ import {
 import { CleanRun } from "@/app/(app)/[emailAccountId]/clean/CleanRun";
 import { checkUserOwnsEmailAccount } from "@/utils/email-account";
 
-export default async function CleanRunPage(props: {
+async function CleanRunPage(props: {
   params: Promise<{ emailAccountId: string }>;
   searchParams: Promise<{ jobId: string; isPreviewBatch: string }>;
 }) {
@@ -57,3 +58,5 @@ export default async function CleanRunPage(props: {
     </Suspense>
   );
 }
+
+export default retainWorkspacePage(CleanRunPage);

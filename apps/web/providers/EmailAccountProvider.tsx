@@ -168,6 +168,20 @@ export function EmailAccountScopeProvider({
   );
 }
 
+export function EmailAccountSnapshotProvider({
+  value,
+  children,
+}: {
+  value: Context;
+  children: React.ReactNode;
+}) {
+  return (
+    <EmailAccountContext.Provider value={value}>
+      {children}
+    </EmailAccountContext.Provider>
+  );
+}
+
 export function useAccount() {
   const context = useContext(EmailAccountContext);
 

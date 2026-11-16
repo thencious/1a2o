@@ -71,6 +71,24 @@
   background-color: hsl(var(--mail-hue) 22% 38%);
 }
 
+.mail-account-theme.mail-account-menu-row {
+  background-color: hsl(var(--mail-hue) 28% 92%);
+}
+
+.mail-account-theme.mail-account-menu-row:hover,
+.mail-account-theme.mail-account-menu-row[data-highlighted] {
+  background-color: hsl(var(--mail-hue) 28% 86%);
+}
+
+.dark .mail-account-theme.mail-account-menu-row {
+  background-color: hsl(var(--mail-hue) 22% 20%);
+}
+
+.dark .mail-account-theme.mail-account-menu-row:hover,
+.dark .mail-account-theme.mail-account-menu-row[data-highlighted] {
+  background-color: hsl(var(--mail-hue) 22% 26%);
+}
+
 .dark .mail-account-reader {
   box-shadow: inset 0 2px hsl(var(--mail-hue) 22% 38%);
 }

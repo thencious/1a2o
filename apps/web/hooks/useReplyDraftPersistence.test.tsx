@@ -32,6 +32,32 @@ const content: ReplyDraftContent = {
 };
 
 describe("useReplyDraftPersistence", () => {
+  it("ignores late autosave callbacks after the composer closes", async () => {
+    save.mockResolvedValue({});
+    let current = content;
+    const getContent = vi.fn(() => current);
+    const { result, unmount } = renderHook(() =>
+      useReplyDraftPersistence({ identity, getContent }),
+    );
+    act(() => result.current.capture());
+    await act(async () => {
+      await result.current.flush();
+    });
+    unmount();
+    await act(async () => {});
+    const reads = getContent.mock.calls.length;
+    const writes = save.mock.calls.length;
+    current = {
+      ...content,
+      values: { ...content.values, subject: "Late provider callback" },
+    };
+    act(() => result.current.capture());
+    await act(async () => {
+      await result.current.flush();
+    });
+    expect(getContent).toHaveBeenCalledTimes(reads);
+    expect(save).toHaveBeenCalledTimes(writes);
+  });
   afterEach(() => {
     cleanup();
     vi.useRealTimers();

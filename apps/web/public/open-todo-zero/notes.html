@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <base href="/open-todo-zero/">
+    <!--INBOX_TODO_BOOTSTRAP-->
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>1a2o Notes</title>
+    <link rel="stylesheet" href="vendor/toastui-editor.css">
+    <link rel="stylesheet" href="vendor/toastui-editor-dark.css">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="notes.css?v=8">
+    <script defer src="browser-cloud-client.js?v=1"></script>
+    <script defer src="offline-host.js?v=1"></script>
+    <script defer src="vendor/purify.js"></script>
+    <script defer src="vendor/toastui-editor.js"></script>
+    <script defer src="notes-bridge.js?v=1"></script>
+    <script defer src="columns.js?v=notes-1"></script>
+    <script defer src="deadlines.js"></script>
+    <script defer src="openrouter.js?v=note-summary-1"></script>
+    <script type="module" src="notes.js?v=redo-shortcut-1"></script>
+    <link rel="stylesheet" href="host.css?v=compact-controls-3">
+  </head>
+  <body class="zenro-notes">
+    <main>
+      <div class="workspace" id="workspace">
+        <section class="task-pane" aria-label="Notes list">
+          <div class="list-tools">
+            <h1>Notes</h1>
+            <button type="button" id="new-note" class="source-toggle">
+              + New note
+            </button>
+          </div>
+
+          <div class="notes-list-controls">
+            <input
+              type="search"
+              id="search-notes"
+              placeholder="Search notes…"
+              aria-label="Search notes"
+            ><select id="sort-notes" aria-label="Sort notes">
+              <option value="manual">Manual order</option>
+              <option value="created-desc">Created · newest first</option>
+              <option value="created-asc">Created · oldest first</option>
+              <option value="edited-desc">Edited · newest first</option>
+              <option value="edited-asc">Edited · oldest first</option>
+            </select><button
+              type="button"
+              id="toggle-date-filter"
+              aria-expanded="false"
+              aria-controls="notes-date-filter"
+            >
+              Date filter
+            </button>
+          </div>
+          <div id="notes-date-filter" hidden>
+            <div class="notes-filter-heading">
+              <label
+                >Filter by<select id="notes-date-field">
+                  <option value="created">Created</option>
+                  <option value="edited">Edited</option>
+                </select></label
+              ><button type="button" id="clear-date-filter">Clear</button>
+            </div>
+            <div class="notes-date-range">
+              <label
+                >From<input id="notes-date-from" type="datetime-local"></label
+              ><label
+                >Through<input id="notes-date-to" type="datetime-local"></label
+              >
+            </div>
+          </div>
+          <div role="group" id="note-list" aria-label="Notes"></div>
+        </section>
+        <aside class="detail-pane" id="detail-pane" aria-label="Note editor">
+          <div id="detail-empty" class="detail-empty">
+            Create a note to start writing.
+          </div>
+          <div id="detail-content" hidden>
+            <div class="editor-box">
+              <div
+                id="note-editor-actions"
+                class="notes-editor-actions"
+                role="group"
+                aria-label="Note actions"
+              >
+                <button
+                  id="add-to-tasks"
+                  type="button"
+                  aria-label="Add to tasks"
+                  title="Add to tasks"
+                >
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.7"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="m3 6 2 2 4-4M13 6h8M3 14l2 2 4-4m4 2h8M3 21h18" />
+                  </svg>
+                </button><button
+                  id="source-toggle"
+                  type="button"
+                  aria-label="Markdown"
+                  title="Markdown"
+                  aria-pressed="false"
+                >
+                  <span aria-hidden="true">&lt;/&gt;</span>
+                </button><button
+                  id="delete-note"
+                  type="button"
+                  aria-label="Delete note"
+                  title="Delete note"
+                >
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.7"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path
+                      d="M3 6h18M9 6V4h6v2M5 6l1 14h12l1-14M10 10v6m4-6v6"
+                    />
+                  </svg>
+                </button>
+              </div>
+              <div
+                role="group"
+                id="editor-mount"
+                aria-label="Notes editor"
+              ></div>
+            </div>
+            <div class="notes-footer">
+              <span id="storage-status" role="status">Saved</span
+              ><span id="word-count"></span>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </main>
+    <section
+      id="time-prompt"
+      class="time-prompt"
+      aria-label="Add a time for the task"
+      hidden
+    >
+      <div class="prompt-heading">
+        <strong>Add a time</strong
+        ><button
+          type="button"
+          id="dismiss-time"
+          class="icon-button"
+          aria-label="Dismiss time prompt"
+        >
+          ×
+        </button>
+      </div>
+      <p id="pending-task-title"></p>
+      <p class="muted">No date was found in this note. When is the task due?</p>
+      <div class="time-fields">
+        <label>Date<input id="task-date" type="date"></label
+        ><label>Time (optional)<input id="task-time" type="time"></label>
+      </div>
+      <p id="time-error" role="status"></p>
+      <button type="button" id="confirm-task-time" class="source-toggle">
+        Add task
+      </button>
+    </section>
+    <div id="notes-notice" class="notes-notice" role="status" hidden></div>
+  </body>
+</html>

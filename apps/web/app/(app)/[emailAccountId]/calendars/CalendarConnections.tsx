@@ -80,6 +80,11 @@ function useCalendarNotifications() {
       string,
       { title: string; description: string }
     > = {
+      editing_permission_required: {
+        title: "Calendar editing permission not granted",
+        description:
+          "Choose Enable editing again and approve calendar event editing on the Google or Microsoft consent screen. Your existing connection has been kept.",
+      },
       consent_declined: {
         title: "Calendar consent not granted",
         description:
@@ -137,6 +142,11 @@ function useCalendarNotifications() {
       error_code: errorParam,
     });
 
-    router.replace(pathname);
+    const remaining = new URLSearchParams(searchParams);
+    remaining.delete("error");
+    remaining.delete("error_description");
+    router.replace(
+      `${pathname}${remaining.size ? `?${remaining}` : ""}#calendar-settings`,
+    );
   }, [analytics, pathname, router, searchParams]);
 }

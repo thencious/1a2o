@@ -48,7 +48,7 @@ const geist = Geist({
   display: "swap",
 });
 
-const title = `${BRAND_NAME} | Automate and clean your inbox`;
+const title = BRAND_NAME;
 const description =
   "Your AI executive assistant to reach inbox zero fast. Automate emails, bulk unsubscribe, block cold emails, and analytics. Open-source";
 
@@ -164,7 +164,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport = {
-  themeColor: "#FFF",
+  themeColor: "#18181b",
 };
 
 export default async function RootLayout({

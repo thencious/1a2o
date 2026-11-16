@@ -136,9 +136,6 @@ export function MailCoverageGate({ children }: { children: ReactNode }) {
       </Empty>
     );
   }
-  if (!status.client) {
-    return <LoadingContent loading>{null}</LoadingContent>;
-  }
   return children;
 }
 

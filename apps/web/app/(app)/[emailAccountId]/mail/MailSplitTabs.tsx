@@ -2,6 +2,7 @@
 
 import { memo, type ReactNode, useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { cn } from "@/utils";
 import { getMailCategories } from "@/app/(app)/[emailAccountId]/mail/MailSidebar";
 import {
   NewSplitDialog,
@@ -54,6 +55,8 @@ export const MailSplitTabs = memo(function MailSplitTabs({
   portableLabelSplits,
   labelsByAccount,
   leading,
+  mailboxType,
+  onSelectMailbox,
 }: {
   splits: (MailSplit & MailSplitTab)[];
   activeSplitId: string | null;
@@ -68,6 +71,8 @@ export const MailSplitTabs = memo(function MailSplitTabs({
   portableLabelSplits?: PortableLabelSplit[];
   labelsByAccount?: Record<string, EmailLabels>;
   leading?: ReactNode;
+  mailboxType?: "spam" | "trash";
+  onSelectMailbox: (type: "spam" | "trash") => void;
 }) {
   const { emailAccountId, provider } = useAccount();
   const isGoogle = isGoogleProvider(provider);
@@ -243,6 +248,36 @@ export const MailSplitTabs = memo(function MailSplitTabs({
         splits={splits}
         countsById={countsById}
         leading={leading}
+        trailing={
+          <span className="ml-1 inline-flex items-center gap-1 border-l border-border pl-2">
+            {(["spam", "trash"] as const).map((type) => {
+              const name = type === "spam" ? "Spam" : "Trash";
+              const count = countsById.get(`mailbox:${type}`);
+              return (
+                <button
+                  key={type}
+                  type="button"
+                  aria-label={name}
+                  aria-pressed={mailboxType === type}
+                  onClick={() => onSelectMailbox(type)}
+                  className={cn(
+                    "inline-flex items-center gap-1 rounded-full px-2 text-xs focus-visible:ring-2 focus-visible:ring-ring",
+                    mailboxType === type
+                      ? "bg-accent text-foreground"
+                      : "text-muted-foreground hover:bg-accent hover:text-foreground",
+                  )}
+                >
+                  {name}
+                  {count !== undefined && (
+                    <span className="tabular-nums opacity-70">
+                      {count.toLocaleString()}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </span>
+        }
         activeSplitId={activeSplitId}
         onSelect={onToggleSplit}
         onFocus={onSelectSplit}

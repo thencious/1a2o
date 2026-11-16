@@ -78,8 +78,11 @@ function createMailboxWindowStore(
   const listeners = new Set<() => void>();
 
   const notify = () => {
+    const next = handle?.getSnapshot() ?? initialSnapshot;
     snapshot = withWindowState(
-      handle?.getSnapshot() ?? initialSnapshot,
+      next.status === "loading" && !next.data && snapshot.data
+        ? { ...snapshot, refreshing: true }
+        : next,
       handle,
       isLoadingMore,
     );
@@ -91,7 +94,6 @@ function createMailboxWindowStore(
     subscribe(listener: () => void) {
       listeners.add(listener);
       if (!handle) {
-        snapshot = withWindowState(initialSnapshot, null, false);
         handle = createHandle();
         unsubscribeHandle = handle.subscribe(notify);
         notify();
@@ -104,7 +106,22 @@ function createMailboxWindowStore(
         handle?.close();
         handle = null;
         isLoadingMore = false;
-        snapshot = withWindowState(initialSnapshot, null, false);
+        // React Activity unsubscribes hidden tabs. Keep their first page visible
+        // while a renewed observation reads the local database on return.
+        snapshot = withWindowState(
+          {
+            ...snapshot,
+            data: snapshot.data
+              ? {
+                  ...snapshot.data,
+                  conversations: snapshot.data.conversations.slice(0, 50),
+                  nextPage: null,
+                }
+              : null,
+          },
+          null,
+          false,
+        );
       };
     },
     async loadMore() {

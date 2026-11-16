@@ -21,6 +21,8 @@ import {
   clearOAuthCode,
 } from "@/utils/redis/oauth-code";
 import { CALENDAR_STATE_COOKIE_NAME } from "./constants";
+import { calendarSettingsPath } from "./settings-path";
+import { CalendarEditingPermissionError } from "./editing-permission";
 
 /**
  * Unified handler for calendar OAuth callbacks
@@ -31,6 +33,7 @@ export async function handleCalendarCallback(
   logger: Logger,
 ): Promise<NextResponse> {
   let redirectHeaders = new Headers();
+  let settingsAccountId: string | undefined;
 
   try {
     // Step 1: Validate OAuth callback parameters
@@ -71,6 +74,7 @@ export async function handleCalendarCallback(
     }
 
     const { emailAccountId } = calendarState;
+    settingsAccountId = emailAccountId;
 
     // Step 4: Verify user owns this email account
     await verifyEmailAccountAccess(
@@ -82,7 +86,9 @@ export async function handleCalendarCallback(
 
     // Step 5: Exchange code for tokens and get email
     const { accessToken, refreshToken, expiresAt, email } =
-      await provider.exchangeCodeForTokens(code);
+      await (calendarState.requireWrite
+        ? provider.exchangeCodeForTokens(code, { requireWrite: true })
+        : provider.exchangeCodeForTokens(code));
 
     // Step 6: Check if connection already exists
     const existingConnection = await checkExistingConnection(
@@ -169,11 +175,15 @@ export async function handleCalendarCallback(
     // Handle all other errors
     logger.error("Error in calendar callback", { error });
 
-    // Try to build a redirect URL, fallback to /calendars
-    const errorRedirectUrl = new URL("/calendars", env.NEXT_PUBLIC_BASE_URL);
+    const errorRedirectUrl = new URL(
+      calendarSettingsPath(settingsAccountId),
+      env.NEXT_PUBLIC_BASE_URL,
+    );
     return redirectWithError(
       errorRedirectUrl,
-      "connection_failed",
+      error instanceof CalendarEditingPermissionError
+        ? "editing_permission_required"
+        : "connection_failed",
       redirectHeaders,
     );
   }

@@ -186,8 +186,7 @@ const selfHostedFooter = {
 };
 
 export function Footer() {
-  const copyrightName =
-    BRAND_NAME === "Inbox Zero" ? "Inbox Zero Inc." : BRAND_NAME;
+  const copyrightName = BRAND_NAME === "1a2o" ? "1a2o Inc." : BRAND_NAME;
 
   if (env.NEXT_PUBLIC_BYPASS_PREMIUM_CHECKS) {
     return (
@@ -227,7 +226,7 @@ export function Footer() {
               rel="noopener noreferrer"
               className="hover:text-gray-900"
             >
-              Inbox Zero
+              1a2o
             </Link>
           </p>
         </div>

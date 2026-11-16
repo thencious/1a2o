@@ -1,6 +1,7 @@
+import { retainWorkspacePage } from "@/components/retain-workspace-page";
 import { SharedConversationReader } from "@/app/(app)/shared/[conversationId]/SharedConversationReader";
 
-export default async function SharedConversationPage({
+async function SharedConversationPage({
   params,
 }: {
   params: Promise<{ conversationId: string }>;
@@ -8,3 +9,5 @@ export default async function SharedConversationPage({
   const { conversationId } = await params;
   return <SharedConversationReader conversationId={conversationId} />;
 }
+
+export default retainWorkspacePage(SharedConversationPage);

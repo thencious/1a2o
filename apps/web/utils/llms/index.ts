@@ -250,6 +250,7 @@ type ChatCompletionStreamOptions = BaseStreamOptions & {
 };
 
 type ToolCallAgentStreamOptions = BaseStreamOptions & {
+  modelOverride?: SelectModel;
   tools?: Record<string, Tool>;
   activeTools?: Array<string>;
   prepareStep?: PrepareStepFunction<Record<string, Tool>>;
@@ -350,6 +351,10 @@ export function createGenerateText({
         options: protectedOptions,
         bridged,
       });
+      protectedRequestOptions.headers = {
+        ...protectedRequestOptions.headers,
+        "x-inbox-zero-feature": label,
+      };
 
       const result = await generateText(
         {
@@ -566,6 +571,7 @@ export function createGenerateObject({
         },
         ...protectedOptions,
         ...commonOptions,
+        headers: { ...protectedOptions.headers, "x-inbox-zero-feature": label },
         telemetry: buildLlmTelemetry({
           userEmail: emailAccount.email,
           userId: emailAccount.userId,
@@ -803,6 +809,7 @@ export async function chatCompletionStream(
         tools: bridgedChat.tools,
         stopWhen: maxSteps ? isStepCount(maxSteps) : undefined,
         ...commonOptions,
+        headers: { "x-inbox-zero-feature": label },
         telemetry: buildLlmTelemetry({
           userEmail,
           userId,
@@ -906,13 +913,18 @@ export async function toolCallAgentStream(options: ToolCallAgentStreamOptions) {
     temperature,
     abortSignal,
   } = options;
-  const { modelOptions, modelCandidates } = await resolveModelCandidates({
-    modelOptions: getModelOptionsForRoute(options),
-    userEmail,
-    userId,
-    emailAccountId,
-    label,
-  });
+  const { modelOptions, modelCandidates } = options.modelOverride
+    ? {
+        modelOptions: options.modelOverride,
+        modelCandidates: [options.modelOverride],
+      }
+    : await resolveModelCandidates({
+        modelOptions: getModelOptionsForRoute(options),
+        userEmail,
+        userId,
+        emailAccountId,
+        label,
+      });
   const hardenedMessages = applyPromptHardeningToMessages({
     messages,
     promptHardening,
@@ -969,6 +981,7 @@ export async function toolCallAgentStream(options: ToolCallAgentStreamOptions) {
       stopWhen: stopWhen ?? (maxSteps ? isStepCount(maxSteps) : undefined),
       temperature,
       ...commonOptions,
+      headers: { "x-inbox-zero-feature": label },
       telemetry: buildLlmTelemetry({
         userEmail,
         userId,

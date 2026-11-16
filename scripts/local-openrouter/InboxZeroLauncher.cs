@@ -8,6 +8,7 @@ using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Text.RegularExpressions;
 using System.Web.Script.Serialization;
 using System.Windows.Forms;
 
@@ -25,6 +26,7 @@ internal static class InboxZeroLauncher
             File.ReadAllText(Path.Combine(folder, "launcher.json")));
         SetCurrentProcessExplicitAppUserModelID(config["appUserModelId"]);
         bool servicesOnly = Array.IndexOf(args, "--services-only") >= 0;
+        string browserArguments = GetBrowserArguments(config["arguments"], args);
         if (servicesOnly) {
             try { EnsureReady(config["root"], folder); }
             catch (Exception error) {
@@ -48,7 +50,7 @@ internal static class InboxZeroLauncher
             try {
                 await Task.Run(() => EnsureReady(config["root"], folder));
                 if (!servicesOnly) {
-                    Process.Start(new ProcessStartInfo(config["browser"], config["arguments"]) {
+                    Process.Start(new ProcessStartInfo(config["browser"], browserArguments) {
                         UseShellExecute = false, CreateNoWindow = true
                     });
                 }
@@ -59,6 +61,21 @@ internal static class InboxZeroLauncher
             } finally { splash.Close(); }
         };
         Application.Run(splash);
+    }
+
+    internal static string GetBrowserArguments(string configuredArguments, string[] args)
+    {
+        string mailto = Array.Find(args, value => value.StartsWith("mailto:", StringComparison.OrdinalIgnoreCase));
+        if (mailto == null) return configuredArguments;
+        string url = "http://localhost:3000/mail?accountScope=all&split=all&composeRequest="
+            + Guid.NewGuid().ToString("N") + "&mailto=" + Uri.EscapeDataString(mailto);
+        var launchUrl = new Regex("--app-launch-url-for-shortcuts-menu-item=(\"[^\"]*\"|\\S+)");
+        if (launchUrl.IsMatch(configuredArguments))
+            return launchUrl.Replace(configuredArguments, "--app-launch-url-for-shortcuts-menu-item=\"" + url + "\"");
+        var appUrl = new Regex("--app=(\"[^\"]*\"|\\S+)");
+        if (appUrl.IsMatch(configuredArguments))
+            return appUrl.Replace(configuredArguments, "--app=\"" + url + "\"");
+        return configuredArguments + " --app=\"" + url + "\"";
     }
 
     private static void EnsureReady(string root, string folder)

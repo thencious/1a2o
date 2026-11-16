@@ -1,0 +1,46 @@
+plugins { id 'com.android.application' }
+
+android {
+    namespace 'app.oneatwoo'
+    compileSdk 35
+    defaultConfig {
+        applicationId 'app.oneatwoo'
+        minSdk 26
+        targetSdk 35
+        versionCode 1
+        versionName '1.0.0'
+    }
+    signingConfigs {
+        if (System.getenv('ANDROID_KEYSTORE_PATH')) {
+            release {
+                storeFile file(System.getenv('ANDROID_KEYSTORE_PATH'))
+                storePassword System.getenv('ANDROID_KEYSTORE_PASSWORD')
+                keyAlias System.getenv('ANDROID_KEY_ALIAS')
+                keyPassword System.getenv('ANDROID_KEY_PASSWORD')
+            }
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            if (System.getenv('ANDROID_KEYSTORE_PATH')) signingConfig signingConfigs.release
+        }
+    }
+    compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+}
+
+dependencies { implementation "org.nanohttpd:nanohttpd:2.3.1" }
+
+// Exercise the relay's HTTP contract on the JVM without Android or a real account.
+tasks.register('compileRelayTests', JavaCompile) {
+    source files('src/main/java/app/oneatwoo/ServerAddress.java', 'src/main/java/app/oneatwoo/LoopbackProxy.java', 'src/test/java/app/oneatwoo/LoopbackProxyTest.java')
+    classpath = configurations.debugCompileClasspath
+    destinationDirectory = layout.buildDirectory.dir('relay-tests')
+    options.release = 17
+}
+tasks.register('testRelay', JavaExec) {
+    dependsOn 'compileRelayTests'
+    classpath = files(layout.buildDirectory.dir('relay-tests')) + configurations.debugCompileClasspath
+    mainClass = 'app.oneatwoo.LoopbackProxyTest'
+    jvmArgs '-Dsun.net.http.allowRestrictedHeaders=true'
+}

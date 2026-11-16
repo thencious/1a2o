@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { after, test } from "node:test";
 import { createGateway } from "./gateway.mjs";
 import { createQuota } from "./quota.mjs";
+import { createRouteHealth } from "./request-policy.mjs";
 
 test("uses a rolling minute, including across UTC midnight", () => {
   const quota = createQuota(":memory:", { perMinute: 2, perDay: 50 });
@@ -189,5 +190,37 @@ test("the HTTP workload header protects new-mail calls after backfill stops", as
     assert.match((await blocked.json()).error.message,/protected for new mail/);
     assert.equal((await send("priority")).status,200);
     assert.equal(calls,3);
+  }finally{await new Promise(resolve=>server.close(resolve));quota.close();}
+});
+
+test("repeated provider 400s are blocked before reserving more daily quota", async () => {
+  const quota=createQuota(":memory:",{perMinute:20,perDay:1000}),routeHealth=createRouteHealth(":memory:");
+  let calls=0;
+  const events=[];
+  const usage={start(event){events.push({...event});return events.length;},finish(id,outcome,status,duration,details){Object.assign(events[id-1],{outcome,status,details});}};
+  const server=createGateway({apiKey:"test",quota,usage,routeHealth,fetchImpl:async()=>{calls++;return Response.json({error:{code:400,message:"[AtlasCloud] bad request",metadata:{provider_name:"AtlasCloud",raw:"must not be retained"}}},{status:400});}});
+  await new Promise(resolve=>server.listen(0,"127.0.0.1",resolve));
+  try{
+    const url=`http://127.0.0.1:${server.address().port}`;
+    const send=()=>fetch(url+"/api/v1/chat/completions",{method:"POST",headers:{Authorization:"Bearer test","x-inbox-zero-feature":"Choose rule"},body:JSON.stringify({model:"test:free"})});
+    assert.equal((await send()).status,400);assert.equal((await send()).status,400);
+    const blocked=await send();assert.equal(blocked.status,409);assert(Number(blocked.headers.get("retry-after"))>0);
+    assert.equal(calls,2);assert.equal(quota.status().dailyUsed,2);
+    assert.equal(events[0].details.provider,"AtlasCloud");assert.equal(events[0].details.category,"invalid_request");assert(!JSON.stringify(events).includes("must not be retained"));
+    assert.equal((await(await fetch(url+"/health")).json()).pausedRoutes[0].feature,"Choose rule");
+  }finally{await new Promise(resolve=>server.close(resolve));quota.close();routeHealth.close();}
+});
+
+test("applies compatible free routing and counts embedded API errors as failures",async()=>{
+  const quota=createQuota(":memory:",{perMinute:20,perDay:50});const events=[];let body;
+  const usage={start(event){events.push(event);return events.length;},finish(id,outcome,status,duration,details){events[id-1]={...events[id-1],outcome,status,details};}};
+  const server=createGateway({apiKey:"test",quota,usage,fetchImpl:async(_url,options)=>{
+    body=JSON.parse(options.body);return Response.json({error:{code:503,message:"Provider unavailable"}});
+  }});
+  await new Promise(resolve=>server.listen(0,"127.0.0.1",resolve));
+  try{
+    const response=await fetch(`http://127.0.0.1:${server.address().port}/api/v1/chat/completions`,{method:"POST",headers:{Authorization:"Bearer test"},body:JSON.stringify({model:"dots-studio/dots-3-note-preview:free",tool_choice:"required",tools:[]})});
+    assert.equal(response.status,503);assert.equal(body.model,"nvidia/nemotron-3.5-super-vl:free");assert.equal(body.provider.require_parameters,true);assert.equal(body.tool_choice,"required");
+    assert.equal(events[0].outcome,"failed");assert.equal(events[0].requestedModel,"dots-studio/dots-3-note-preview:free");assert.equal(events[0].model,"nvidia/nemotron-3.5-super-vl:free");
   }finally{await new Promise(resolve=>server.close(resolve));quota.close();}
 });

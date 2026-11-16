@@ -19,9 +19,6 @@ let onDownloadProgress:
 export type DesktopDownloadProgress = { version: string; percent: number };
 
 export function logDesktopUpdateError(error: unknown) {
-  console.error(
-    error instanceof Error ? error.message : "Desktop update check failed",
-  );
   if (!isTransientNetworkError(error)) {
     captureDesktopError(error, { area: "auto-update" });
   }
@@ -83,7 +80,7 @@ export async function checkForDesktopUpdatesManually(
     await dialog.showMessageBox({
       type: "info",
       message: "Updates are unavailable in development builds",
-      detail: "Install a released version of Inbox Zero to receive updates.",
+      detail: "Install a released version of 1a2o to receive updates.",
     });
     return false;
   }
@@ -109,7 +106,7 @@ export async function checkForDesktopUpdatesManually(
       await dialog.showMessageBox({
         type: "info",
         message: "You're up to date",
-        detail: `Inbox Zero ${app.getVersion()} is the latest version.`,
+        detail: `1a2o ${app.getVersion()} is the latest version.`,
       });
       return true;
     }
@@ -124,9 +121,9 @@ export async function checkForDesktopUpdatesManually(
 
     await dialog.showMessageBox({
       type: "info",
-      message: `Downloading Inbox Zero ${result.updateInfo.version}`,
+      message: `Downloading 1a2o ${result.updateInfo.version}`,
       detail:
-        "You can keep using Inbox Zero. Restart to Update will appear in the app menu when it's ready.",
+        "You can keep using 1a2o. Restart to Update will appear in the app menu when it's ready.",
     });
     return true;
   } catch (error) {
@@ -199,7 +196,7 @@ function notifyUpdateReady(version: string) {
     if (!Notification.isSupported()) return;
     new Notification({
       title: "Update ready to install",
-      body: `Restart Inbox Zero to finish updating to ${version}.`,
+      body: `Restart 1a2o to finish updating to ${version}.`,
     }).show();
   } catch (error) {
     logDesktopUpdateError(error);
@@ -216,7 +213,7 @@ async function promptToInstallDownloadedUpdate(
     defaultId: 0,
     cancelId: 1,
     message: "An update is ready to install",
-    detail: `Inbox Zero ${downloadedVersion} has been downloaded. Restart now to finish updating.`,
+    detail: `1a2o ${downloadedVersion} has been downloaded. Restart now to finish updating.`,
   });
   if (response === 0) {
     prepareToQuit();

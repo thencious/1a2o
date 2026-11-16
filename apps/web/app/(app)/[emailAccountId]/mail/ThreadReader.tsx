@@ -29,6 +29,7 @@ import { extractEmailAddress, extractNameFromEmail } from "@/utils/email";
 import { PublisherDiscussion } from "@/components/team-comments/PublisherDiscussion";
 import type { OutgoingThreadMessage } from "@/utils/mail-engine/conversation-thread";
 import { getConversationSubject } from "@/utils/email/subject";
+import { useDraftSyncMessages } from "@/hooks/useDraftSyncMessages";
 
 const SenderContextPanel = dynamic(
   () =>
@@ -102,7 +103,7 @@ export function ThreadReader({
   detailSelectionSettled,
   loading,
   error,
-  messages,
+  messages: liveMessages,
   localAvailability,
   userLabels,
   layout,
@@ -128,6 +129,11 @@ export function ThreadReader({
   } | null>(null);
   const [readerRef, readerWidth] = useElementWidth();
   const { emailAccountId } = useAccount();
+  const messages = useDraftSyncMessages(
+    emailAccountId,
+    liveMessages,
+    threadId ?? "",
+  );
   const hiddenDraftMessageIds = useHiddenDraftMessageIds(emailAccountId);
   const headerMessage =
     latestShownMessage(thread?.messages ?? [], hiddenDraftMessageIds) ??
@@ -142,7 +148,7 @@ export function ThreadReader({
     ? undefined
     : translation?.subject;
 
-  if (error || (!headerMessage && !localAvailability)) {
+  if ((error && !messages.length) || (!headerMessage && !localAvailability)) {
     return (
       <div
         className="flex min-h-0 min-w-0 flex-1 flex-col items-center justify-center gap-2 px-6 py-16 text-center"
@@ -236,6 +242,27 @@ export function ThreadReader({
         ) : null
       }
     >
+      {error && messages.length > 0 && (
+        <div
+          className="flex items-center gap-2 pb-2 text-muted-foreground text-xs"
+          role="status"
+        >
+          Couldn’t refresh this conversation. Your open draft is still
+          available.
+          <Button onClick={refetch} size="sm" variant="ghost">
+            Retry
+          </Button>
+        </div>
+      )}
+      <span
+        hidden
+        data-command-context={JSON.stringify({
+          tab: "mail",
+          threadId,
+          emailAccountId,
+          messageId: messages.at(-1)?.id ?? "",
+        })}
+      />
       {messages.length > 0 ? (
         <EmailThread
           renderToolbar={renderToolbar}

@@ -203,10 +203,10 @@ export function RuleStep({
   isManualMode,
   extraOptions,
 }: {
-  onRemove: () => void;
+  onRemove?: () => void;
   leftContent: React.ReactNode | null;
   rightContent: React.ReactNode;
-  removeAriaLabel: string;
+  removeAriaLabel?: string;
   onAddDelay?: () => void;
   onRemoveDelay?: () => void;
   hasDelay?: boolean;
@@ -224,20 +224,22 @@ export function RuleStep({
         <CardLayout>
           {leftContent && <div className="shrink-0">{leftContent}</div>}
           <CardLayoutRight>{rightContent}</CardLayoutRight>
-          <ActionButtons
-            onRemove={onRemove}
-            removeAriaLabel={removeAriaLabel}
-            onAddDelay={onAddDelay}
-            onRemoveDelay={onRemoveDelay}
-            hasDelay={hasDelay}
-            onUsePrompt={onUsePrompt}
-            onUseLabel={onUseLabel}
-            isPromptMode={isPromptMode}
-            onSetManually={onSetManually}
-            onUseAiDraft={onUseAiDraft}
-            isManualMode={isManualMode}
-            extraOptions={extraOptions}
-          />
+          {onRemove && (
+            <ActionButtons
+              onRemove={onRemove}
+              removeAriaLabel={removeAriaLabel ?? "Remove step"}
+              onAddDelay={onAddDelay}
+              onRemoveDelay={onRemoveDelay}
+              hasDelay={hasDelay}
+              onUsePrompt={onUsePrompt}
+              onUseLabel={onUseLabel}
+              isPromptMode={isPromptMode}
+              onSetManually={onSetManually}
+              onUseAiDraft={onUseAiDraft}
+              isManualMode={isManualMode}
+              extraOptions={extraOptions}
+            />
+          )}
         </CardLayout>
       </div>
     </div>

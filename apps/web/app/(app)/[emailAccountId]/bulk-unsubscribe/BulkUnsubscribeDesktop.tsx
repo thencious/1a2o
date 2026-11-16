@@ -1,4 +1,5 @@
 "use client";
+import { newsletterKey } from "./identity";
 
 import type React from "react";
 import {
@@ -139,7 +140,9 @@ export function BulkUnsubscribeRowDesktop({
         <ButtonCheckbox
           label={`Select ${item.fromName || item.name}`}
           checked={checked}
-          onChange={(shiftKey) => onToggleSelect?.(item.name, shiftKey)}
+          onChange={(shiftKey) =>
+            onToggleSelect?.(newsletterKey(item), shiftKey)
+          }
         />
       </TableCell>
       <TableCell className="min-w-0 py-3 pl-4" data-cell="from">
@@ -149,6 +152,11 @@ export function BulkUnsubscribeRowDesktop({
             <div className="truncate font-medium">
               {item.fromName || item.name}
             </div>
+            {item.userEmail && (
+              <div className="truncate text-[10px] text-muted-foreground">
+                {item.userEmail}
+              </div>
+            )}
             {item.fromName && (
               <div className="truncate text-xs text-muted-foreground lg:text-sm">
                 {item.name}

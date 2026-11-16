@@ -1,0 +1,422 @@
+:root {
+  --bg: #202020;
+  --surface: #262626;
+  --line: #383838;
+  --text: #ddd;
+  --muted: #969696;
+}
+.detail-pane {
+  background: var(--surface);
+}
+.task-row.selected {
+  background: #303030;
+}
+.task-row:hover {
+  background: #292929;
+}
+.list-tools {
+  background: var(--bg);
+}
+.task-pane {
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+}
+.task-pane #task-list {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+.task-pane #task-list > .priority-section {
+  position: relative;
+  display: flex;
+  flex: 0 0 var(--todo-section-height, 25%);
+  flex-direction: column;
+  height: var(--todo-section-height, 25%);
+  min-height: 0;
+  max-height: none;
+  overflow: visible;
+}
+.task-pane #task-list .priority-tasks {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.todo-section-divider {
+  position: absolute;
+  top: -5px;
+  right: 0;
+  left: 0;
+  z-index: 4;
+  height: 10px;
+  touch-action: none;
+  cursor: row-resize;
+  outline: none;
+}
+.todo-section-divider::after {
+  position: absolute;
+  top: 4px;
+  right: 0;
+  left: 0;
+  height: 1px;
+  content: "";
+  background: var(--line);
+  transition: background 0.1s;
+}
+.todo-section-divider:hover::after,
+.todo-section-divider:focus-visible::after {
+  height: 2px;
+  background: #929292;
+}
+body.todo-section-resizing,
+body.todo-section-resizing * {
+  cursor: row-resize !important;
+  user-select: none !important;
+}
+@media (max-width: 720px) {
+  .workspace {
+    height: 100dvh;
+    min-height: 0;
+    overflow: hidden;
+  }
+  .task-pane {
+    height: 100dvh;
+    min-height: 0;
+    overflow: hidden;
+  }
+}
+
+#todo-default-calendar {
+  width: 100%;
+  padding: 7px;
+  font: inherit;
+  font-size: 12px;
+  color: #ddd;
+  background: #242424;
+  border: 1px solid #444;
+  border-radius: 4px;
+}
+
+@media (min-width: 721px) {
+  .workspace {
+    position: relative;
+    grid-template-columns: var(--todo-list-width, 50%) minmax(0, 1fr);
+  }
+  .todo-column-divider {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: var(--todo-list-width, 50%);
+    z-index: 20;
+    width: 8px;
+    touch-action: none;
+    cursor: col-resize;
+    outline: none;
+    transform: translateX(-50%);
+  }
+  .todo-column-divider::after {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 3px;
+    width: 2px;
+    content: "";
+    background: transparent;
+  }
+  .todo-column-divider:hover::after,
+  .todo-column-divider:focus-visible::after,
+  .todo-column-resizing .todo-column-divider::after {
+    background: #737373;
+  }
+  .todo-column-resizing,
+  .todo-column-resizing * {
+    cursor: col-resize !important;
+    user-select: none !important;
+  }
+}
+@media (max-width: 720px) {
+  .todo-column-divider {
+    display: none;
+  }
+}
+
+/* Shared control geometry for both editors; sprites retain their native 32px grid. */
+.icon-button {
+  box-sizing: border-box;
+  display: inline-flex;
+  flex: 0 0 28px;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  margin: 0;
+  line-height: 1;
+}
+.icon-button svg {
+  display: block;
+  flex: none;
+  width: 16px;
+  height: 16px;
+}
+.source-toggle {
+  box-sizing: border-box;
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  padding: 4px 6px;
+  margin: 0;
+  line-height: 20px;
+}
+.detail-topline {
+  flex-shrink: 0;
+  gap: 8px;
+  min-height: 28px;
+  margin-bottom: 8px;
+}
+.detail-title {
+  height: 28px;
+  padding: 0;
+  line-height: 28px;
+}
+.detail-complete {
+  box-sizing: border-box;
+  flex: 0 0 16px;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: #bbb;
+  cursor: pointer;
+}
+.detail-topline .note-meta {
+  flex-shrink: 0;
+  gap: 6px;
+}
+.detail-topline #estimate-label {
+  max-width: 100px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.detail-topline select {
+  height: 28px;
+  padding: 3px 6px;
+}
+.deadline-fields {
+  gap: 6px;
+  min-height: 28px;
+  margin-bottom: 8px;
+}
+.deadline-fields label {
+  flex-shrink: 0;
+  gap: 4px;
+  min-width: 0;
+}
+.deadline-fields input {
+  box-sizing: border-box;
+  height: 28px;
+  min-height: 28px;
+  padding: 3px 4px;
+}
+.deadline-fields input[type="date"] {
+  width: 101px;
+}
+.deadline-fields input[type="time"] {
+  width: 108px;
+}
+.deadline-fields .icon-button {
+  width: 28px;
+  height: 28px;
+}
+.deadline-fields .notes-actions {
+  flex-shrink: 0;
+  gap: 4px;
+  align-items: center;
+}
+#deadline-feedback:empty,
+#ai-result-status:empty {
+  display: none;
+}
+.toastui-editor-defaultUI-toolbar {
+  box-sizing: border-box;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0;
+  align-items: center;
+  height: auto;
+  min-height: 40px;
+  padding: 0 8px;
+  overflow: visible;
+}
+.toastui-editor-defaultUI-toolbar .toastui-editor-toolbar-group {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  padding: 0;
+  margin: 0;
+}
+.toastui-editor-defaultUI-toolbar .toastui-editor-toolbar-icons {
+  box-sizing: border-box;
+  flex: 0 0 32px;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  margin: 0;
+}
+.toastui-editor-defaultUI-toolbar .toastui-editor-toolbar-divider {
+  flex-shrink: 0;
+  height: 18px;
+  margin: 0 6px;
+}
+.toastui-editor-defaultUI-toolbar .notes-editor-actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 0;
+  align-items: center;
+  order: 1;
+  padding: 0 0 0 8px;
+  margin: 0 0 0 auto;
+}
+.toastui-editor-defaultUI-toolbar .notes-editor-actions button {
+  box-sizing: border-box;
+  display: inline-flex;
+  flex: 0 0 32px;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  margin: 0;
+  line-height: 1;
+}
+.toastui-editor-defaultUI-toolbar .notes-editor-actions svg {
+  display: block;
+  flex: none;
+  width: 16px;
+  height: 16px;
+}
+
+.deadline-fields .note-meta {
+  display: flex;
+  flex-shrink: 0;
+  gap: 6px;
+  align-items: center;
+}
+.note-meta select {
+  box-sizing: border-box;
+  height: 28px;
+  padding: 3px 6px;
+}
+.note-meta #estimate-label {
+  max-width: 100px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.detail-topline .notes-actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 4px;
+  align-items: center;
+}
+:is(.zenro-notes, .zenro-tasks)
+  .toastui-editor-defaultUI-toolbar
+  .toastui-editor-toolbar-icons {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text);
+  background-image: none !important;
+  border: 0 !important;
+  box-shadow: none;
+  filter: none;
+}
+:is(.zenro-notes, .zenro-tasks) .toastui-editor-toolbar-icons::before {
+  display: block;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  content: "";
+  background-color: currentColor;
+  mask-image: var(--note-tool-icon);
+  mask-repeat: no-repeat;
+  mask-position: center;
+  mask-size: contain;
+}
+:is(.zenro-notes, .zenro-tasks)
+  .toastui-editor-defaultUI-toolbar
+  :is(.toastui-editor-toolbar-icons, .notes-editor-actions button):hover {
+  background-color: #383838 !important;
+  border: 0 !important;
+  box-shadow: none;
+}
+:is(.zenro-notes, .zenro-tasks)
+  .toastui-editor-defaultUI-toolbar
+  :is(
+    .toastui-editor-toolbar-icons,
+    .notes-editor-actions button
+  ):focus-visible {
+  outline: 1px solid var(--muted);
+  outline-offset: -1px;
+}
+:is(.zenro-notes, .zenro-tasks) .toastui-editor-toolbar-icons.heading {
+  --note-tool-icon: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%221.7%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M5%204v16M19%204v16M5%2012h14%22%2F%3E%3C%2Fsvg%3E");
+}
+:is(.zenro-notes, .zenro-tasks) .toastui-editor-toolbar-icons.bold {
+  --note-tool-icon: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%221.7%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M6%2012h8a4%204%200%200%201%200%208H6V4h7a4%204%200%200%201%200%208%22%2F%3E%3C%2Fsvg%3E");
+}
+:is(.zenro-notes, .zenro-tasks) .toastui-editor-toolbar-icons.italic {
+  --note-tool-icon: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%221.7%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M19%204h-9M14%2020H5M15%204%209%2020%22%2F%3E%3C%2Fsvg%3E");
+}
+:is(.zenro-notes, .zenro-tasks) .toastui-editor-toolbar-icons.bullet-list {
+  --note-tool-icon: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%221.7%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M9%206h12M9%2012h12M9%2018h12%22%2F%3E%3Ccircle%20cx%3D%224%22%20cy%3D%226%22%20r%3D%221%22%2F%3E%3Ccircle%20cx%3D%224%22%20cy%3D%2212%22%20r%3D%221%22%2F%3E%3Ccircle%20cx%3D%224%22%20cy%3D%2218%22%20r%3D%221%22%2F%3E%3C%2Fsvg%3E");
+}
+:is(.zenro-notes, .zenro-tasks) .toastui-editor-toolbar-icons.ordered-list {
+  --note-tool-icon: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%221.7%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M10%206h11M10%2012h11M10%2018h11M3%204h2v5M3%209h4M3%2014c0-3%204-3%204-1%200%202-4%203-4%206h4%22%2F%3E%3C%2Fsvg%3E");
+}
+:is(.zenro-notes, .zenro-tasks) .toastui-editor-toolbar-icons.task-list {
+  --note-tool-icon: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%221.7%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Crect%20x%3D%223%22%20y%3D%223%22%20width%3D%2218%22%20height%3D%2218%22%20rx%3D%222%22%2F%3E%3Cpath%20d%3D%22m7%2012%203%203%207-7%22%2F%3E%3C%2Fsvg%3E");
+}
+:is(.zenro-notes, .zenro-tasks) .toastui-editor-toolbar-icons.link {
+  --note-tool-icon: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%221.7%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22m10%2013%204-4M8%2016l-1%201a4%204%200%200%201-6-6l4-4a4%204%200%200%201%206%200m2%2010a4%204%200%200%200%206%200l4-4a4%204%200%200%200-6-6l-1%201%22%2F%3E%3C%2Fsvg%3E");
+}
+:is(.zenro-notes, .zenro-tasks) .toastui-editor-toolbar-icons.code {
+  --note-tool-icon: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%221.7%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22m8%206-6%206%206%206m8-12%206%206-6%206m-3-14-2%2016%22%2F%3E%3C%2Fsvg%3E");
+}
+:is(.zenro-notes, .zenro-tasks) .toastui-editor-toolbar-icons.quote {
+  --note-tool-icon: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%221.7%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M10%206H4v7h6v5H6m14-12h-6v7h6v5h-4%22%2F%3E%3C%2Fsvg%3E");
+}
+:is(.zenro-notes, .zenro-tasks) .toastui-editor-toolbar-icons.more {
+  --note-tool-icon: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%221.7%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Ccircle%20cx%3D%224%22%20cy%3D%2212%22%20r%3D%221%22%2F%3E%3Ccircle%20cx%3D%2212%22%20cy%3D%2212%22%20r%3D%221%22%2F%3E%3Ccircle%20cx%3D%2220%22%20cy%3D%2212%22%20r%3D%221%22%2F%3E%3C%2Fsvg%3E");
+}
+
+.zenro-tasks .priority-heading {
+  gap: 12px;
+}
+.zenro-tasks .priority-heading > span {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.zenro-tasks .priority-heading .section-add-form {
+  flex: 1;
+  gap: 6px;
+  min-width: 0;
+  height: 24px;
+  margin: 0;
+}
+.zenro-tasks .priority-heading .section-new-task {
+  height: 24px;
+  padding: 3px 0;
+  line-height: 18px;
+}
+
+.zenro-tasks
+  .priority-urgent
+  :is(.priority-heading, .task-title, .row-title-input) {
+  color: #e99797;
+}

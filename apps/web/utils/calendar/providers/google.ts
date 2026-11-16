@@ -12,6 +12,7 @@ import {
 } from "@/utils/gmail/oauth";
 import type { CalendarOAuthProvider, CalendarTokens } from "../oauth-types";
 import { autoPopulateTimezone } from "../timezone-helpers";
+import { requireCalendarEditingScope } from "../editing-permission";
 
 export function createGoogleCalendarProvider(
   logger: Logger,
@@ -19,7 +20,10 @@ export function createGoogleCalendarProvider(
   return {
     name: "google",
 
-    async exchangeCodeForTokens(code: string): Promise<CalendarTokens> {
+    async exchangeCodeForTokens(
+      code: string,
+      options?: { requireWrite?: boolean },
+    ): Promise<CalendarTokens> {
       const googleAuth = getCalendarOAuth2Client();
 
       const { tokens } = await googleAuth.getToken(code);
@@ -28,6 +32,8 @@ export function createGoogleCalendarProvider(
       if (!access_token || !refresh_token) {
         throw new Error("No refresh_token returned from Google");
       }
+      if (options?.requireWrite)
+        requireCalendarEditingScope("google", tokens.scope);
 
       const payload = isGoogleOauthEmulationEnabled()
         ? await fetchGoogleOpenIdProfile(access_token)

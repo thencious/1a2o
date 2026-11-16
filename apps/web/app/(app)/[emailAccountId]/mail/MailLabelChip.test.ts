@@ -8,9 +8,9 @@ import {
 
 describe("chipColorForLabel", () => {
   it("gives product labels their fixed colour, however they are cased", () => {
-    expect(chipColorForLabel("To Reply")).toBe("blue");
-    expect(chipColorForLabel("to reply")).toBe("blue");
-    expect(chipColorForLabel("  Cold Email  ")).toBe("red");
+    expect(chipColorForLabel("To Reply")).toBe("red");
+    expect(chipColorForLabel("to reply")).toBe("red");
+    expect(chipColorForLabel("  Cold Email  ")).toBe("blue");
     expect(chipColorForLabel("Newsletter")).toBe("purple");
     expect(chipColorForLabel("Awaiting Reply")).toBe("cyan");
   });

@@ -21,8 +21,9 @@ import {
   MailOpenIcon,
   PanelLeftIcon,
   RowsIcon,
+  RefreshCwIcon,
   SearchIcon,
-  SparklesIcon,
+  PenLineIcon,
   StarIcon,
   StarOffIcon,
   TagIcon,
@@ -72,7 +73,9 @@ export type ListToolbarProps = {
   searchVariant?: "gmail" | "outlook" | "common";
   onToggleLayout: () => void;
   onTogglePreview: () => void;
-  onToggleAssistant: () => void;
+  onCompose: () => void;
+  onRefresh?: () => void;
+  isRefreshing?: boolean;
   /** Rendered here only when the split tabs row isn't showing to hold it. */
   selectAll?: ReactNode;
   selectedCount: number;
@@ -106,7 +109,9 @@ export const ListToolbar = memo(function ListToolbar({
   searchVariant = "gmail",
   onToggleLayout,
   onTogglePreview,
-  onToggleAssistant,
+  onCompose,
+  onRefresh,
+  isRefreshing = false,
   selectAll,
   selectedCount,
   onArchiveSelected,
@@ -265,6 +270,25 @@ export const ListToolbar = memo(function ListToolbar({
         />
       )}
 
+      {selectedCount === 0 && onRefresh ? (
+        <Tooltip content="Refresh mail">
+          <button
+            type="button"
+            onClick={onRefresh}
+            disabled={isRefreshing}
+            aria-label="Refresh mail"
+            className={cn(
+              toolbarButton,
+              "w-8 justify-center px-0 disabled:opacity-50",
+            )}
+          >
+            <RefreshCwIcon
+              className={cn("size-3.5", isRefreshing && "animate-spin")}
+            />
+          </button>
+        </Tooltip>
+      ) : null}
+
       {selectedCount === 0 ? (
         <Tooltip
           shortcuts={[
@@ -310,17 +334,17 @@ export const ListToolbar = memo(function ListToolbar({
       ) : null}
 
       {selectedCount === 0 ? (
-        <Tooltip content="Assistant">
+        <Tooltip content="Compose">
           <button
             type="button"
-            onClick={onToggleAssistant}
-            aria-label="Toggle the assistant"
+            onClick={onCompose}
+            aria-label="Compose"
             className={cn(
               toolbarButton,
               "mail-assistant-toggle w-8 justify-center border-blue-600 bg-blue-600 px-0 text-white hover:border-blue-700 hover:bg-blue-700 hover:text-white dark:border-blue-700 dark:bg-blue-700 dark:hover:border-blue-800 dark:hover:bg-blue-800",
             )}
           >
-            <SparklesIcon className="size-3.5" />
+            <PenLineIcon className="size-3.5" />
           </button>
         </Tooltip>
       ) : null}

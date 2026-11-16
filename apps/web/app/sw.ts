@@ -41,6 +41,29 @@ const mailCachePromise = cacheNamePromise.then((cacheName) =>
   createOfflineMailCache({ origin: self.location.origin, cacheName }),
 );
 
+const workspaceCache = "1a2o-offline-workspaces-v1";
+self.addEventListener("install", (event) => {
+  event.waitUntil(
+    (async () => {
+      const manifestResponse = await fetch(
+        "/open-todo-zero/offline-assets.json",
+        { cache: "no-store" },
+      );
+      if (!manifestResponse.ok) return;
+      const data: { assets: string[] } = await manifestResponse.json();
+      const cache = await caches.open(workspaceCache);
+      await Promise.all(
+        data.assets
+          .filter((path) => path.startsWith("/open-todo-zero/"))
+          .map(async (path) => {
+            const response = await fetch(path, { cache: "reload" });
+            if (response.ok) await cache.put(path, response);
+          }),
+      );
+    })().catch(() => {}),
+  );
+});
+
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     cacheNamePromise.then(async (currentCache) => {
@@ -111,6 +134,37 @@ const serwist = new Serwist({
   clientsClaim: true,
   navigationPreload: false,
   runtimeCaching: [
+    {
+      matcher: ({ request, url }) =>
+        request.mode === "navigate" &&
+        url.origin === self.location.origin &&
+        /^\/[^/]+\/(todo|notes)\/?$/.test(url.pathname),
+      handler: async ({ request }) => {
+        try {
+          return await fetch(request);
+        } catch {
+          const fallback = await (await caches.open(workspaceCache)).match(
+            "/open-todo-zero/offline.html",
+          );
+          return fallback ?? Response.error();
+        }
+      },
+    },
+    {
+      matcher: ({ url }) =>
+        url.origin === self.location.origin &&
+        url.pathname.startsWith("/open-todo-zero/"),
+      handler: async ({ request, url }) => {
+        const cache = await caches.open(workspaceCache);
+        try {
+          const response = await fetch(request);
+          if (response.ok) await cache.put(url.pathname, response.clone());
+          return response;
+        } catch {
+          return (await cache.match(url.pathname)) ?? Response.error();
+        }
+      },
+    },
     {
       matcher: ({ request }) =>
         matchesOfflineMailRequest(request, self.location.origin),

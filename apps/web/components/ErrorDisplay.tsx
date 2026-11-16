@@ -49,6 +49,9 @@ export function ErrorDisplay(props: {
           <EmptyTitle>There was an error</EmptyTitle>
           <EmptyDescription>{errorMessage}</EmptyDescription>
         </EmptyHeader>
+        <Button variant="outline" onClick={() => window.location.reload()}>
+          Reload view
+        </Button>
       </Empty>
     );
   }
@@ -69,6 +72,9 @@ export function ErrorDisplay(props: {
             if the error persists.
           </EmptyDescription>
         </EmptyHeader>
+        <Button variant="outline" onClick={() => window.location.reload()}>
+          Reload view
+        </Button>
       </Empty>
     );
   }

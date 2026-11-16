@@ -11,7 +11,10 @@ export interface CalendarOAuthProvider {
   /**
    * Exchange OAuth code for tokens and get user email
    */
-  exchangeCodeForTokens(code: string): Promise<CalendarTokens>;
+  exchangeCodeForTokens(
+    code: string,
+    options?: { requireWrite?: boolean },
+  ): Promise<CalendarTokens>;
   name: "google" | "microsoft";
 
   /**
@@ -36,5 +39,6 @@ export interface OAuthCallbackValidation {
 export interface CalendarOAuthState {
   emailAccountId: string;
   nonce: string;
+  requireWrite?: boolean;
   type: "calendar";
 }

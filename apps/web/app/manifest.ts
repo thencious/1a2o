@@ -27,10 +27,11 @@ export default function manifest(): MetadataRoute.Manifest {
     name: BRAND_NAME,
     short_name: BRAND_NAME,
     icons: [...customIcon, ...defaultIcons],
-    theme_color: "#FFFFFF",
-    background_color: "#FFFFFF",
+    theme_color: "#18181b",
+    background_color: "#18181b",
     start_url: "/",
     display: "standalone",
+    launch_handler: { client_mode: "navigate-existing" },
     orientation: "portrait",
   };
 }

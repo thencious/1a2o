@@ -1,7 +1,8 @@
+import { retainWorkspacePage } from "@/components/retain-workspace-page";
 import { Rule } from "@/app/(app)/[emailAccountId]/assistant/RuleForm";
 import { TopSection } from "@/components/TopSection";
 
-export default async function RulePage(props: {
+async function RulePage(props: {
   params: Promise<{ ruleId: string; account: string }>;
   searchParams: Promise<{ new: string }>;
 }) {
@@ -29,3 +30,5 @@ export default async function RulePage(props: {
     </div>
   );
 }
+
+export default retainWorkspacePage(RulePage);

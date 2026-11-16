@@ -150,23 +150,21 @@ export const ThreadRow = memo(function ThreadRow({
       onSelectRangeTo={onSelectRangeTo}
       onToggleSelect={onToggleSelect}
       participantSummary={participantSummary}
-      renderSelectionControl={({ ariaLabel, checked, onClick, visible }) => (
-        // Opening above would cover the select-all checkbox for the first row.
-        <Tooltip shortcuts={["select"]} side="right">
-          <Checkbox
-            aria-label={ariaLabel}
-            checked={checked}
-            className={cn(
-              mailCheckboxClassName,
-              "transition-opacity",
-              visible
-                ? "opacity-100"
-                : "opacity-0 group-focus-within:opacity-100 group-hover:opacity-100",
-            )}
-            onClick={onClick}
-          />
-        </Tooltip>
-      )}
+      renderSelectionControl={
+        hasAnySelection
+          ? ({ ariaLabel, checked, onClick }) => (
+              // Opening above would cover the select-all checkbox for the first row.
+              <Tooltip shortcuts={["select"]} side="right">
+                <Checkbox
+                  aria-label={ariaLabel}
+                  checked={checked}
+                  className={cn(mailCheckboxClassName)}
+                  onClick={onClick}
+                />
+              </Tooltip>
+            )
+          : undefined
+      }
       rowRef={rowRef}
       selectionEnabled={selectionEnabled}
       snippet={decodeSnippet(thread.snippet || message.snippet)}

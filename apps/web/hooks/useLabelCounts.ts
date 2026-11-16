@@ -16,14 +16,20 @@ const NO_FOLDERS: MailboxCountFolder[] = [];
  */
 export function useLabelCounts({
   emailAccountId,
+  accountIds,
   labels,
   folders,
 }: {
   emailAccountId: string;
+  accountIds?: string[];
   labels: Array<{ id: string; name: string }>;
   folders: MailboxCountFolder[];
 }) {
   const client = useOptionalMailClient();
+  const resolvedAccountIds = useMemo(
+    () => accountIds ?? [emailAccountId],
+    [accountIds, emailAccountId],
+  );
   const resolvedLabels = labels.length > 0 ? labels : NO_LABELS;
   const resolvedFolders = folders.length > 0 ? folders : NO_FOLDERS;
   const hiddenDraftMessageIds = useHiddenDraftMessageIds(emailAccountId);
@@ -46,7 +52,7 @@ export function useLabelCounts({
       return;
     }
     const handle = client.observeMailboxCounts({
-      accountIds: [emailAccountId],
+      accountIds: resolvedAccountIds,
       targets: targets.map(({ id, predicate }) => ({ id, predicate })),
     });
     const targetsById = new Map(targets.map((target) => [target.id, target]));
@@ -71,11 +77,11 @@ export function useLabelCounts({
       unsubscribe();
       handle.close();
     };
-  }, [client, emailAccountId, targets]);
+  }, [client, resolvedAccountIds, targets]);
 
   const mutate = useCallback(async () => {
-    await client?.requestSync([emailAccountId]);
-  }, [client, emailAccountId]);
+    await client?.requestSync(resolvedAccountIds);
+  }, [client, resolvedAccountIds]);
 
   return { countsById, mutate };
 }

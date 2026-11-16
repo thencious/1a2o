@@ -8,6 +8,7 @@ import { cn } from "@/utils";
 
 export type MailLabelChipProps = {
   name: string;
+  tone?: ChipColor;
   /** The color assigned by Gmail or Outlook. */
   color?: EmailLabel["color"];
   /** Interactive: the chip navigates to that label's view. */
@@ -26,22 +27,25 @@ export type MailLabelChipProps = {
 export function MailLabelChip({
   name,
   color,
+  tone,
   href,
   onRemove,
   className,
 }: MailLabelChipProps) {
   const isMarketing = name.trim().toLowerCase() === "marketing";
-  const providerStyle = labelColorStyle(name, color);
+  const providerStyle = tone ? undefined : labelColorStyle(name, color);
 
   return (
     <span
       className={cn(
         "group/chip relative isolate inline-flex min-w-0 max-w-full items-center gap-0.5 whitespace-nowrap rounded-md border border-transparent px-1.5 py-px text-xs leading-4 before:pointer-events-none before:absolute before:inset-y-0 before:left-0 before:-z-10 before:rounded-md before:border before:transition-[right] before:content-['']",
-        isMarketing
-          ? "text-neutral-600 before:border-neutral-300 before:bg-neutral-100 dark:text-neutral-400 dark:before:border-neutral-600 dark:before:bg-neutral-800"
-          : providerStyle
-            ? "text-[var(--mail-label-text-color)] before:border-[var(--mail-label-background-color)] before:bg-[var(--mail-label-background-color)]"
-            : CHIP_CLASSES[chipColorForLabel(name)],
+        tone
+          ? CHIP_CLASSES[tone]
+          : isMarketing
+            ? "text-neutral-600 before:border-neutral-300 before:bg-neutral-100 dark:text-neutral-400 dark:before:border-neutral-600 dark:before:bg-neutral-800"
+            : providerStyle
+              ? "text-[var(--mail-label-text-color)] before:border-[var(--mail-label-background-color)] before:bg-[var(--mail-label-background-color)]"
+              : CHIP_CLASSES[chipColorForLabel(name)],
         onRemove
           ? "before:right-3 hover:before:right-0 focus-within:before:right-0"
           : "before:right-0",
@@ -104,10 +108,10 @@ export const CHIP_COLORS = Object.keys(CHIP_CLASSES) as ChipColor[];
 /** Lowercased, so a label keeps its colour however the provider cases it. */
 const NAMED_CHIP_COLORS: Record<string, ChipColor> = {
   marketing: "gray",
-  "to reply": "blue",
+  "to reply": "red",
   notification: "green",
   receipt: "orange",
-  "cold email": "red",
+  "cold email": "blue",
   newsletter: "purple",
   actioned: "orange",
   "awaiting reply": "cyan",

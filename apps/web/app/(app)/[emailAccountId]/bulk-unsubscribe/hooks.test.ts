@@ -4,6 +4,7 @@ import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NewsletterStatus } from "@/generated/prisma/enums";
 import type { Row } from "@/app/(app)/[emailAccountId]/bulk-unsubscribe/types";
+import { newsletterKey } from "./identity";
 import { EMAIL_PROVIDER_RATE_LIMIT_MESSAGE } from "@/utils/error";
 
 const {
@@ -87,6 +88,7 @@ vi.mock("sonner", () => ({
 import {
   useApproveButton,
   useAutoArchive,
+  useBulkApprove,
   useBulkAutoArchive,
   useBulkUnsubscribe,
   useDeleteAllFromSender,
@@ -505,5 +507,68 @@ describe("bulk unsubscribe hooks", () => {
       expect(captureExceptionMock).not.toHaveBeenCalled();
       expect(queueArchiveSendersMock).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe("cross-inbox bulk operations", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    setSenderStatusActionMock.mockResolvedValue({
+      data: { autoArchived: true },
+    });
+    decrementCreditMock.mockResolvedValue(undefined);
+    queueArchiveSendersMock.mockResolvedValue(1);
+    addToArchiveSenderThreadQueueMock.mockResolvedValue(true);
+  });
+  it("keeps the same sender independently in each mailbox and deselects its composite identity", async () => {
+    const rows = [
+      getRow({ emailAccountId: "gmail" }),
+      getRow({ emailAccountId: "outlook" }),
+    ];
+    let data = { newsletters: rows };
+    const mutate = vi.fn(async (update) => {
+      if (typeof update === "function") data = update(data);
+    });
+    const deselect = vi.fn();
+    const { result } = renderHook(() =>
+      useBulkApprove({
+        ...sharedHookArgs,
+        mutate,
+        onDeselectItem: deselect,
+        filter: "all",
+      }),
+    );
+    await act(async () => {
+      await result.current.onBulkApprove(rows);
+    });
+    expect(setSenderStatusActionMock.mock.calls.map((call) => call[0])).toEqual(
+      ["gmail", "outlook"],
+    );
+    expect(deselect.mock.calls.map((call) => call[0])).toEqual(
+      rows.map(newsletterKey),
+    );
+    expect(data.newsletters.map((row) => row.status)).toEqual([
+      NewsletterStatus.APPROVED,
+      NewsletterStatus.APPROVED,
+    ]);
+  });
+  it("routes blocking and archival to the source account for every selected sender", async () => {
+    const { result } = renderHook(() =>
+      useBulkAutoArchive({ ...sharedHookArgs, filter: "all" }),
+    );
+    await act(async () => {
+      await result.current.onBulkAutoArchive([
+        getRow({ emailAccountId: "outlook" }),
+      ]);
+    });
+    expect(setSenderStatusActionMock).toHaveBeenCalledWith(
+      "outlook",
+      expect.objectContaining({ senderEmail: SENDER }),
+    );
+    expect(addToArchiveSenderThreadQueueMock).toHaveBeenCalledWith({
+      emailAccountId: "outlook",
+      sender: SENDER,
+    });
+    expect(queueArchiveSendersMock).not.toHaveBeenCalled();
   });
 });

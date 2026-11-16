@@ -1,7 +1,8 @@
+import { retainWorkspacePage } from "@/components/retain-workspace-page";
 import { PermissionsCheck } from "@/app/(app)/[emailAccountId]/PermissionsCheck";
 import { BulkArchive } from "@/app/(app)/[emailAccountId]/bulk-archive/BulkArchive";
 
-export default function BulkArchivePage() {
+function BulkArchivePage() {
   return (
     <>
       <PermissionsCheck />
@@ -9,3 +10,5 @@ export default function BulkArchivePage() {
     </>
   );
 }
+
+export default retainWorkspacePage(BulkArchivePage);

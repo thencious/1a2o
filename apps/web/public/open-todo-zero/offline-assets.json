@@ -1,0 +1,30 @@
+{
+  "version": 2,
+  "assets": [
+    "/open-todo-zero/app.js",
+    "/open-todo-zero/browser-cloud-client.js",
+    "/open-todo-zero/browser-cloud-crypto.mjs",
+    "/open-todo-zero/cloud.js",
+    "/open-todo-zero/columns.js",
+    "/open-todo-zero/deadlines.js",
+    "/open-todo-zero/host.css",
+    "/open-todo-zero/host.js",
+    "/open-todo-zero/index.html",
+    "/open-todo-zero/notes-bridge.js",
+    "/open-todo-zero/notes-list.mjs",
+    "/open-todo-zero/notes.css",
+    "/open-todo-zero/notes.html",
+    "/open-todo-zero/notes.js",
+    "/open-todo-zero/notifications.js",
+    "/open-todo-zero/offline-host.js",
+    "/open-todo-zero/offline-shell.js",
+    "/open-todo-zero/offline.html",
+    "/open-todo-zero/openrouter.js",
+    "/open-todo-zero/styles.css",
+    "/open-todo-zero/vendor/purify.js",
+    "/open-todo-zero/vendor/toastui-editor-dark.css",
+    "/open-todo-zero/vendor/toastui-editor.css",
+    "/open-todo-zero/vendor/toastui-editor.js",
+    "/open-todo-zero/workspace-data.mjs"
+  ]
+}

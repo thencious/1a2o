@@ -5,6 +5,7 @@ import {resolve} from 'node:path';
 import {setTimeout as delay} from 'node:timers/promises';
 import pg from '../../apps/web/node_modules/pg/lib/index.js';
 import {initializeBatchQueue,enqueueMessages,claimEmailBatch} from './queue.mjs';
+import {jobRetryAt} from './retry-policy.mjs';
 
 const directory=resolve('.context/local-ai');
 mkdirSync(directory,{recursive:true});
@@ -40,7 +41,7 @@ function heartbeat(){
 async function call(body){
   const response=await fetch('http://127.0.0.1:3000/api/cron/local-ai',{method:'POST',headers:{'content-type':'application/json','x-api-key':process.env.INTERNAL_API_KEY},body:JSON.stringify(body),signal:AbortSignal.timeout(body.operation==='arrivals'?15000:600000)});
   const data=await response.json().catch(()=>({}));
-  if(!response.ok)throw new Error(`Local AI ${body.operation} returned HTTP ${response.status}`);
+  if(!response.ok)throw Object.assign(new Error(`Local AI ${body.operation} returned HTTP ${response.status}`),{status:response.status,retryAfter:response.headers.get('retry-after')});
   return data;
 }
 
@@ -132,8 +133,10 @@ function dispatch(account,jobs,priority){
       if(processed.size!==jobs.length)lastError='Some saved label actions will retry';else lastError=null;
     }catch(error){
       for(const job of jobs){
-        const retry=priority?Math.min(60000,5000*2**Math.min(job.attempts,4)):Math.min(900000,30000*2**Math.min(job.attempts,5));
-        db.prepare('UPDATE jobs SET attempts=attempts+1,retry_at=? WHERE account_id=? AND message_id=?').run(Date.now()+retry,account.id,job.message_id);
+        const day=new Date().toISOString().slice(0,10);
+        const failuresToday=(job.failure_day===day?job.failures_today:0)+1;
+        const retryAt=jobRetryAt({attempts:failuresToday-1,failuresToday,priority,status:error.status,retryAfter:error.retryAfter});
+        db.prepare('UPDATE jobs SET attempts=attempts+1,retry_at=?,failure_day=?,failures_today=? WHERE account_id=? AND message_id=?').run(retryAt,day,failuresToday,account.id,job.message_id);
       }
       lastError=error.message;
       console.warn(JSON.stringify({event:'retry',workload:priority?'new-mail':'backfill',count:jobs.length,error:error.message}));
@@ -156,12 +159,14 @@ async function tick(){
   if(quota.dailyUsed>=quota.perDay){status.phase='daily_limit';heartbeat();await delay(1000);return;}
   if(quota.cooldownUntil>Date.now()){status.phase='minute_pause';heartbeat();await delay(Math.min(1000,quota.cooldownUntil-Date.now()+50));return;}
   if(active.size>=6){await Promise.race([...active,delay(1000)]);return;}
-  for(let i=0;i<accounts.length;i++){
+  const priorityPaused=quota.pausedRoutes?.some(route=>route.feature==='Choose rule'&&route.until>Date.now());
+  const backfillPaused=quota.pausedRoutes?.some(route=>route.feature==='Old email tagging'&&route.until>Date.now());
+  for(let i=0;!priorityPaused&&i<accounts.length;i++){
     const account=accounts[nextAccount++%accounts.length];
     const jobs=claimEmailBatch(db,{accountId:account.id,cutoff,priority:true,limit:1});
     if(jobs.length){dispatch(account,jobs,true);return;}
   }
-  if(quota.backfillRemaining>0 && bulkActive.size<4){
+  if(!backfillPaused && quota.backfillRemaining>0 && bulkActive.size<4){
     startBacklogScan();
     for(let i=0;i<accounts.length;i++){
       const account=accounts[nextAccount++%accounts.length];
@@ -174,7 +179,7 @@ async function tick(){
   }
   const pending=db.prepare('SELECT COUNT(*) AS count FROM jobs WHERE done=0').get().count;
   const unfinished=db.prepare('SELECT COUNT(*) AS count FROM accounts WHERE exhausted=0').get().count;
-  status.phase=quota.backfillRemaining<=0?'new_mail_only':(!pending&&!unfinished?'caught_up':'waiting');
+  status.phase=priorityPaused||backfillPaused?'model_paused':quota.backfillRemaining<=0?'new_mail_only':(!pending&&!unfinished?'caught_up':'waiting');
   heartbeat();await Promise.race([...active,delay(1000)]);
 }
 

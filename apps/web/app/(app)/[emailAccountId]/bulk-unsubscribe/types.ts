@@ -11,6 +11,8 @@ export type NewsletterFilterType =
   | "approved";
 
 export type Row = {
+  emailAccountId?: string;
+  userEmail?: string;
   name: string;
   fromName?: string;
   unsubscribeLink?: string | null;

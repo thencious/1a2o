@@ -42,10 +42,12 @@ export function buildUserChatMessageMetadata({
   runId,
   context,
   inlineActions,
+  sourceContext,
 }: {
   runId: string;
   context?: AssistantInput["context"];
   inlineActions?: AssistantInput["inlineActions"];
+  sourceContext?: AssistantInput["sourceContext"];
 }): Prisma.InputJsonObject {
   const hiddenContext = context
     ? {
@@ -69,6 +71,7 @@ export function buildUserChatMessageMetadata({
   return {
     schemaVersion: CHAT_MESSAGE_METADATA_SCHEMA_VERSION,
     runId,
+    ...(sourceContext ? { sourceContext } : {}),
     ...(hiddenContext ? { hiddenContext } : {}),
     ...(inlineActionMetadata ? { inlineActions: inlineActionMetadata } : {}),
   };

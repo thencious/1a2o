@@ -1,10 +1,35 @@
-# Open Inbox Zero: local OpenRouter setup
+# 1a2o: local OpenRouter setup
 
 This optional local runner extends [Inbox Zero](https://github.com/elie222/inbox-zero).
 Use the upstream hosting guides for Docker, Linux, macOS, or a cloud deployment.
 The portable runner and desktop launcher documented here target Windows x64.
 No credentials, installed tools, mailbox databases, or generated executables are
 shipped in this repository.
+
+## Calendar view
+
+The Calendars page includes a unified month view across all connected Google and
+Outlook calendar accounts. Only active calendars receive colors, starting with
+red, yellow, blue, green, and purple before using additional distinct accents.
+The same colors appear in month events, the day timeline, and settings.
+Archived calendars remain uncolored; changing the active selection redistributes
+the palette across the calendars in use.
+Archive or restore calendars using the visibility
+checklist in User → Settings → Calendars. Click a
+day to create an event, or click an event to view or edit it. The event editor
+remembers the last calendar used for new events. Shared calendars are shown once;
+read-only calendars remain viewable. Recurring-event edits affect one occurrence.
+Mailbox-specific connections and scheduling settings are in User → Settings →
+Calendars. Select the mailbox there to manage its connections and scheduling.
+Use **Enable editing** on an existing connection to reopen Google or Microsoft
+consent for that calendar account. Approve event editing to upgrade the connection;
+declining write access keeps the existing connection. Subscription calendars and
+calendars shared without editor access remain read-only.
+Google events generated automatically from Gmail have protected event details.
+Use **Create editable copy** for a normal event with editable title, time, and
+notes; the original is kept and guests are not copied. **Delete** remains available
+for events in writable calendars, including Gmail-generated events and unwanted
+invitations, and requires confirmation.
 
 ## Prerequisites
 
@@ -183,6 +208,103 @@ for your use case. `.env.local` and `.context/` are ignored.
 Back up the database and encryption configuration together. The Redis-compatible
 cache is disposable. Changes to `NEXT_PUBLIC_*` settings require a rebuild.
 
+## Unified messages
+
+**Messages** stays in the main sidebar. **Rules** and the original **Channels**
+email-to-chat delivery settings are under **Tools**, collapsed by default.
+
+The **Messages** sidebar page uses a compact conversation list and resizable
+thread preview, combining WhatsApp, WeChat, Discord direct messages, and
+Google Messages SMS/RCS. Each conversation appears once with its latest message;
+group conversations open in the same preview. Account/unread filters, arrow-key
+navigation, older history, replies, and media previews/downloads are included.
+Replies can include one attachment up to 17 MB. Provider limits still apply.
+
+Install and run Beeper Desktop, sign in, and link the messaging accounts there.
+Enable its Desktop API under Settings → Integrations and create an approved
+connection token. Open **Messages → Settings** in 1a2o and paste the
+token. It is validated against the fixed loopback API and stored encrypted under
+ignored `.context/beeper/`. Set `LOCAL_BEEPER_ENABLED=true` and
+`LOCAL_BEEPER_OWNER_ID` to the authorized local app user. Other app users cannot
+access this installation's chats or connection token.
+
+Discord server channels are excluded. Beeper's public API exposes server channels
+and private group DMs under the same group type, so Discord groups are excluded
+by default. Under Messages settings, explicitly select only private group DMs to
+include. Ordinary WhatsApp, WeChat, and SMS groups need no manual approval.
+
+The app polls conversations every five seconds and the open thread every 2.5
+seconds. Draft text stays in this browser when switching threads or reloading.
+Message submissions use durable receipts and disable automatic request retries
+to prevent duplicate sends after an uncertain network response. Media access is
+checked against an authorized conversation and its actual attachment records.
+Beeper must remain running; some networks route through Beeper Cloud according
+to the connection type chosen there. No messaging accounts are linked by merely
+enabling this feature.
+
+In Messages settings, Startup and recovery can save an existing Beeper recovery key once. The key is encrypted locally and never returned to the browser. Saving verifies it against the currently signed-in Beeper account; later unverified sessions for that account can be recovered through Beeper's documented local API. The background service starts the installed Beeper Desktop app when needed, without passing mailbox/provider credentials to it. Repeated failed key attempts stop until an explicit retry or key change.
+
+Recovery verifies encrypted messaging after sign-in. It does not replace email-code sign-in, renew a rejected Desktop API token, or reset encryption keys. Keep an independent backup of the recovery key; the local encrypted copy depends on this installation's encryption configuration.
+
+
+## Local Codex agents
+
+The **Agents** sidebar page opens real Codex CLI terminals. **Add agent** opens
+a searchable conversation picker with full titles, folders, and models.
+**New chat** is the first option, with a slightly brighter neutral background.
+Opening the picker prepares a fresh CLI immediately. Selecting **New chat**
+reuses it. Selecting an existing conversation reuses the panel and resumes
+that chat; closing the picker removes the unused fresh CLI.
+Panels use up to four columns and
+continue on another row as more are added. The terminal accepts native CLI
+shortcuts and slash commands, including modified arrow keys. Settings and the
+message input start collapsed directly beneath each panel's title bar. Click
+the clock to the left of its connection status to expand or collapse them.
+The input sends immediately; Shift+Enter adds a line. Model, thinking level,
+and working folder controls apply to messages sent through that input.
+
+Timers are optional. Opening the controls initializes a timer at the actual
+Codex five-hour reset plus one minute unless a task already exists. Enter a
+custom `h:mm` delay to change it. Collapsing the controls leaves an existing
+timer running; use Stop to cancel it. The deadline is an absolute timestamp.
+Pause/resume, stop, and send-now controls are available. Panels and
+timers persist in `.context/agents/`, and closing the app window leaves the
+local broker and deadlines running. Overdue tasks resume when services start.
+
+Enable this local feature with `LOCAL_AGENTS_ENABLED=true` and set
+`LOCAL_AGENTS_OWNER_ID` to the authorized application's user ID.
+`LOCAL_AGENTS_TIMER_ROOT` must point to the existing Codex Task Timer source
+directory containing `core.py`, `shared_codex.py`, and `rate_limits.py`.
+`LOCAL_AGENTS_CODEX_PATH` and `LOCAL_AGENTS_PYTHON` select the installed Codex
+CLI and Python executables. These are server-only settings. The broker binds
+to loopback port 3011; authenticated app actions and one-use terminal tickets
+mediate access without exposing the internal API key.
+
+Managed terminals connect to Codex's shared server. Messages can also reach
+closed chats and externally opened legacy CLI chats through the existing
+timer's delivery mechanisms and Codex's durable queue. A legacy CLI that owns
+its own terminal may need to be closed before its interactive terminal can be
+opened here. This integration was verified with Codex CLI 0.166.0; see the
+[CLI reference](https://learn.chatgpt.com/docs/cli/reference) and
+[app-server documentation](https://learn.chatgpt.com/docs/app-server).
+
+## Message and calendar labeling rules
+
+Tools → Rules separates Mail, Messages, and Calendars above the Rules, Test,
+History, and Settings tabs. Mail keeps its existing email automation. Messages
+starts with editable Business, Casual, Notification, and Other rules. Use New rule
+to describe a condition and configure its Label as action. Rules are evaluated
+in priority order; the first match supplies the label. Custom labels are supported.
+Calendar rules start empty and apply labels displayed locally on calendar events;
+they do not edit provider events or change calendar permissions.
+
+Conversation labels refresh automatically while the app runs, including when
+another section is open. Matching uses up to ten items per OpenRouter request
+through the same quota gateway as Mail. Unchanged items reuse encrypted saved
+results; failures back off and retry. Rules, labels, and recent match history
+are stored encrypted under the ignored `.context/automation` directory and are
+restricted to the configured local owner. Pausing rules preserves existing labels.
+
 ## Verification
 
 Gateway, queue, and scheduler-worker tests use synthetic data and no mailbox:
@@ -197,3 +319,44 @@ with synthetic content and uses two real calls. Neither accesses a mailbox.
 Focused app tests cover bulk assignments, draft receipts, callback state,
 recipient parsing, split selection, keyboard navigation, and provider behavior.
 Browser tests include a lost-creation-response recovery case and attachment placement.
+To cap older-mail tagging at 500 calls/day with a 1,000-call total budget, set
+`OPENROUTER_NEW_MAIL_RESERVE=500` in `apps/web/.env.local` and restart the gateway.
+This leaves 500 calls for new mail and interactive use. Existing daily counters
+are preserved; the next reset remains 00:00 UTC. The reserve defaults to 100
+and is clamped to the total daily allowance.
+
+
+## ChatGPT sign-in and app-wide Chat tools
+
+Chat includes **Continue with ChatGPT** for the owner of a local installation.
+It uses OpenAI's public-client registration flow, PKCE, one-time state, and a
+signed/verified ID token. No API key or partner client secret is required for the
+open-source local flow. The callback is `http://127.0.0.1:<app-port>/auth/callback`;
+complete sign-in on the same computer running 1a2o. Issued client registration,
+host identity and encrypted credentials persist across restarts. Tokens never go
+into browser storage, source control or chat tool results. Sign-out attempts
+remote session revocation and reports if that could not be confirmed.
+
+After connection, select an account-available model in Chat. Chat uses the public
+Responses API with streaming and `store=false`, retaining 1a2o's tools and local
+chat history. **Use OpenRouter** switches only Chat back to its existing provider.
+Background classification, task analysis, `/add`, `/invite` and automatic
+compaction keep their existing OpenRouter routing and quota. ChatGPT inference
+uses the account's applicable plan access/limits; availability is checked against
+the account's model catalog and errors are shown without silent provider fallback.
+
+Chat also exposes `discoverZenroTools` and `runZenroTool` for app-wide capabilities:
+owned-mailbox reads, messages/replies/reactions/recall/forwarding, unified contacts,
+calendar events and settings, Tasks and Notes, their transfers and calendar sync,
+message/calendar/task rules, agent panels and schedules, and historical usage.
+Discovery returns per-domain schemas, and execution reuses the app's service
+validation, user ownership, optimistic revisions, idempotent sends and provider
+permissions. The existing email confirmation cards remain in place. Message
+sending, invitations, deletes and CLI dispatch require concrete user intent;
+retrieved content is data, not instructions or permission. Credentials and
+arbitrary operating-system access are excluded. Completed writes refresh affected
+cached views and notify retained Task/Note frames to reconcile server changes.
+
+Official integration references:
+- https://developers.openai.com/siwc/token-sharing-open-source/sign-in
+- https://developers.openai.com/siwc/token-sharing-open-source/models-and-inference

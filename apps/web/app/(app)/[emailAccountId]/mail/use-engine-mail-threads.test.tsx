@@ -3,6 +3,8 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
+import { saveMailboxPreview } from "@/utils/mail-engine/mailbox-preview-cache";
+import { threadsQueryToConversationQuery } from "@/utils/mail-engine/threads-query";
 import type { MailClient } from "@inboxzero/mail-core/engine";
 import { MailEngineProvider } from "@inboxzero/mail-react/MailEngineProvider";
 import type {
@@ -18,6 +20,25 @@ function wrapper({ children }: { children: ReactNode }) {
 }
 
 describe("useEngineMailThreads", () => {
+  it("shows persisted rows before the engine starts without leaking them on account switch", () => {
+    const query = { type: "inbox" } as ThreadsQuery;
+    saveMailboxPreview(
+      threadsQueryToConversationQuery({ accountIds: ["acc-1"], query }),
+      mailboxSnapshot().data!,
+    );
+    const { result, rerender, unmount } = renderHook(
+      ({ emailAccountId }) => useEngineMailThreads({ emailAccountId, query }),
+      { initialProps: { emailAccountId: "acc-1" } },
+    );
+    expect(result.current.threads).toHaveLength(1);
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.hasMore).toBe(false);
+    rerender({ emailAccountId: "not-cached" });
+    expect(result.current.threads).toEqual([]);
+    expect(result.current.isLoading).toBe(true);
+    unmount();
+  });
+
   it("keeps the disabled empty result stable across query identity changes", async () => {
     const { result, rerender } = renderHook(
       ({ query }: { query: ThreadsQuery }) =>

@@ -1,9 +1,10 @@
+import { retainWorkspacePage } from "@/components/retain-workspace-page";
 import { PageWrapper } from "@/components/PageWrapper";
 import { OrgAnalyticsConsentBanner } from "@/app/(app)/organization/[organizationId]/OrgAnalyticsConsentBanner";
 import { OrgStats } from "@/app/(app)/organization/[organizationId]/stats/OrgStats";
 import { OrganizationTabs } from "@/app/(app)/organization/[organizationId]/OrganizationTabs";
 
-export default async function OrgStatsPage({
+async function OrgStatsPage({
   params,
 }: {
   params: Promise<{ organizationId: string }>;
@@ -20,3 +21,5 @@ export default async function OrgStatsPage({
     </PageWrapper>
   );
 }
+
+export default retainWorkspacePage(OrgStatsPage);

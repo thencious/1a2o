@@ -1,10 +1,13 @@
 "use client";
 
 import Link from "next/link";
+import { MobileDevicesSettings } from "./MobileDevicesSettings";
+import { CloudSyncSettings } from "./CloudSyncSettings";
 import type { MouseEvent } from "react";
 import { useCallback, useMemo, useState } from "react";
 import {
   ChevronRightIcon,
+  CalendarIcon,
   CreditCardIcon,
   MailIcon,
   MessageCircleIcon,
@@ -56,6 +59,7 @@ import { useAccount } from "@/providers/EmailAccountProvider";
 import { cn } from "@/utils";
 import { env } from "@/env";
 import { hasOrganizationAdminRole } from "@/utils/organizations/roles";
+import { CalendarSettingsSection } from "./CalendarSettingsSection";
 
 export function SettingsContent() {
   const { emailAccountId: activeEmailAccountId } = useAccount();
@@ -101,6 +105,8 @@ export function SettingsContent() {
 
   return (
     <div className="space-y-10">
+      <MobileDevicesSettings />
+      <CloudSyncSettings />
       <SettingsGroup
         icon={<MailIcon className="size-5" />}
         title="Email Accounts"
@@ -130,6 +136,16 @@ export function SettingsContent() {
               </Button>
             </div>
           )}
+        </LoadingContent>
+      </SettingsGroup>
+
+      <SettingsGroup
+        id="calendar-settings"
+        icon={<CalendarIcon className="size-5" />}
+        title="Calendars"
+      >
+        <LoadingContent loading={isLoading} error={error}>
+          <CalendarSettingsSection accounts={emailAccounts} />
         </LoadingContent>
       </SettingsGroup>
 
@@ -339,16 +355,18 @@ function ProviderIcon({
 }
 
 function SettingsGroup({
+  id,
   icon,
   title,
   children,
 }: {
+  id?: string;
   icon?: React.ReactNode;
   title?: string;
   children: React.ReactNode;
 }) {
   return (
-    <section className="space-y-4">
+    <section id={id} className="space-y-4">
       {title && (
         <div className="flex items-center gap-2 text-muted-foreground">
           {icon}

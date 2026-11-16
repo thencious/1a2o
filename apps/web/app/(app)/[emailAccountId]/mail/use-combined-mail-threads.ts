@@ -33,6 +33,8 @@ export function useCombinedMailThreads({
   splitSelection,
   splits = [],
   portableLabelSplits = [],
+  mailboxType,
+  scopeQuery,
 }: {
   accounts: CombinedListThread["account"][];
   emailAccountId: string;
@@ -43,6 +45,8 @@ export function useCombinedMailThreads({
   splitSelection?: SplitSelection;
   splits?: MailSplit[];
   portableLabelSplits?: PortableLabelSplit[];
+  mailboxType?: "spam" | "trash";
+  scopeQuery?: ThreadsQuery | null;
 }) {
   const accountIds = useMemo(
     () => accounts.map((account) => account.id),
@@ -84,14 +88,17 @@ export function useCombinedMailThreads({
       portableLabelSplits,
     ],
   );
-  const query = useMemo<ThreadsQuery>(() => {
-    if (searchQuery) return { q: searchQuery };
-    if (labelNames?.length) {
-      return { type: "inbox" };
-    }
-    if (isUnread) return { type: "unread" };
-    return { type: "inbox" };
-  }, [isUnread, labelNames, searchQuery]);
+  const query = useMemo(
+    () =>
+      combinedMailThreadsQuery({
+        searchQuery,
+        scopeQuery,
+        mailboxType,
+        labelNames,
+        isUnread,
+      }),
+    [isUnread, labelNames, searchQuery, mailboxType, scopeQuery],
+  );
   const waitingForLabels = Boolean(
     splitSelection &&
       portableLabelSplits.some((split) =>
@@ -104,7 +111,7 @@ export function useCombinedMailThreads({
     accountIds: accountIds.length ? accountIds : [emailAccountId],
     accounts: accountsById,
     query,
-    predicate: searchQuery ? undefined : predicate,
+    predicate: searchQuery || mailboxType || scopeQuery ? undefined : predicate,
     enabled: enabled && !waitingForLabels,
   });
   return {
@@ -112,6 +119,20 @@ export function useCombinedMailThreads({
     isLoading: state.isLoading || (enabled && waitingForLabels),
     labelsByAccount,
   };
+}
+
+export function combinedMailThreadsQuery(input: {
+  searchQuery?: string;
+  scopeQuery?: ThreadsQuery | null;
+  mailboxType?: "spam" | "trash";
+  labelNames?: string[];
+  isUnread: boolean;
+}): ThreadsQuery {
+  if (input.searchQuery) return { q: input.searchQuery };
+  if (input.scopeQuery) return input.scopeQuery;
+  if (input.mailboxType) return { type: input.mailboxType };
+  if (input.labelNames?.length) return { type: "inbox" };
+  return { type: input.isUnread ? "unread" : "inbox" };
 }
 
 function useLabelsByAccount(accountIds: string[]): Record<string, EmailLabels> {

@@ -6,6 +6,10 @@ import { useOptionalMailClient } from "@inboxzero/mail-react/MailEngineProvider"
 import type { ThreadResponse } from "@/app/api/threads/[id]/route";
 import { useAccount } from "@/providers/EmailAccountProvider";
 import {
+  readConversationPreview,
+  saveConversationPreview,
+} from "@/utils/mail-engine/conversation-view-cache";
+import {
   CONVERSATION_PAGE_SIZE,
   conversationOutgoingMessages,
   conversationSendOperationIds,
@@ -60,7 +64,16 @@ export function useThread(
     );
   }, [client, emailAccountId, id, pageSize]);
   const snapshot = useQuerySnapshot(createHandle);
-  const view = useStableConversationView(snapshot.data);
+  const view = useStableConversationView(
+    snapshot,
+    emailAccountId,
+    id,
+    pageSize,
+  );
+  useEffect(() => {
+    if (snapshot.status === "ready" && snapshot.data)
+      saveConversationPreview(snapshot.data, pageSize);
+  }, [snapshot.status, snapshot.data, pageSize]);
   const requestedContent = useRef({ createHandle, ids: new Set<string>() });
 
   useEffect(() => {
@@ -91,8 +104,7 @@ export function useThread(
     return data;
   }, [client, data, emailAccountId, view]);
 
-  const isLoading =
-    Boolean(id) && (!client || !data) && snapshot.status !== "error";
+  const isLoading = Boolean(id) && !data && snapshot.status !== "error";
   const errorCode = snapshot.error?.code;
   // Kept referentially stable so a memoized reader only re-renders when the
   // conversation actually changes.
@@ -139,10 +151,28 @@ function conversationQueryError(
 // Writes elsewhere, such as saving a new draft, can republish this view with
 // the same messages. Keeping the previous view spares the open reader a full
 // re-render for them.
-function useStableConversationView(view: ConversationView | null) {
+function useStableConversationView(
+  snapshot: QuerySnapshot<ConversationView>,
+  accountId: string,
+  conversationId: string | null,
+  pageSize: number,
+) {
   const previous = useRef<{ key: string; view: ConversationView } | null>(null);
   return useMemo(() => {
-    if (!view) return view;
+    const view = snapshot.data;
+    if (!view) {
+      const cached = previous.current?.view;
+      if (
+        (snapshot.status === "loading" || snapshot.error?.retryable) &&
+        cached?.key.accountId === accountId &&
+        cached.key.conversationId === conversationId
+      )
+        return cached;
+      previous.current = null;
+      return snapshot.status === "loading" || snapshot.error?.retryable
+        ? readConversationPreview(accountId, conversationId, pageSize)
+        : null;
+    }
     const key = JSON.stringify([
       view.key,
       view.messages,
@@ -152,5 +182,5 @@ function useStableConversationView(view: ConversationView | null) {
     if (previous.current?.key === key) return previous.current.view;
     previous.current = { key, view };
     return view;
-  }, [view]);
+  }, [snapshot, accountId, conversationId, pageSize]);
 }

@@ -26,6 +26,10 @@ vi.mock("@/components/ui/sidebar", () => ({
 }));
 
 afterEach(cleanup);
+vi.mock("@/hooks/useAppNavigation", () => ({
+  useNavigation: () => ({ manageItems: [], cleanupItems: [], moreItems: [] }),
+}));
+vi.mock("next/navigation", () => ({ usePathname: () => "/account-1/mail" }));
 
 function sidebar(overrides: Partial<MailSidebarProps> = {}) {
   return (
@@ -45,7 +49,6 @@ function sidebar(overrides: Partial<MailSidebarProps> = {}) {
       labelSingular="label"
       emailAccountId="account-1"
       onNavigate={vi.fn()}
-      onCompose={vi.fn()}
       onOpenSettings={vi.fn()}
       onCreateLabel={vi.fn()}
       onEditMailboxItem={vi.fn()}
@@ -198,6 +201,6 @@ describe("MailSidebar", () => {
     renderSidebar({ unified: true });
 
     expect(screen.queryByRole("button", { name: "More" })).toBeNull();
-    expect(screen.getByText("All inboxes")).toBeDefined();
+    expect(screen.queryByText("All inboxes")).toBeNull();
   });
 });

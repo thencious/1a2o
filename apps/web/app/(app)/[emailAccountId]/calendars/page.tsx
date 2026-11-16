@@ -1,25 +1,19 @@
+import { retainWorkspacePage } from "@/components/retain-workspace-page";
 import { PageWrapper } from "@/components/PageWrapper";
 import { PageHeader } from "@/components/PageHeader";
-import { CalendarConnections } from "./CalendarConnections";
-import { CalendarSettings } from "./CalendarSettings";
-import { BookingLinksSection } from "./BookingLinksSection";
-import { AvailabilitySection } from "./AvailabilitySection";
-import { TimezoneDetector } from "@/components/TimezoneDetector";
+import { UnifiedMonthCalendar } from "./UnifiedMonthCalendar";
+import { auth } from "@/utils/auth";
+import { redirect } from "next/navigation";
 
-export default async function CalendarsPage() {
+async function CalendarsPage() {
+  const session = await auth();
+  if (!session?.user.id) redirect("/login");
   return (
     <PageWrapper>
-      <TimezoneDetector />
-      <PageHeader
-        title="Calendars"
-        description="Powering AI scheduling and meeting briefs."
-      />
-      <div className="mt-6 max-w-4xl space-y-4">
-        <CalendarConnections />
-        <BookingLinksSection />
-        <AvailabilitySection />
-        <CalendarSettings />
-      </div>
+      <PageHeader title="Calendars" />
+      <UnifiedMonthCalendar key={session.user.id} userId={session.user.id} />
     </PageWrapper>
   );
 }
+
+export default retainWorkspacePage(CalendarsPage);

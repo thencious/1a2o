@@ -1,4 +1,5 @@
 "use client";
+import { retainWorkspacePage } from "@/components/retain-workspace-page";
 
 import { useState } from "react";
 import { CalendarIcon, MicIcon, SettingsIcon } from "lucide-react";
@@ -27,7 +28,7 @@ import { UpcomingMeetingsToggleList } from "@/app/(app)/[emailAccountId]/meeting
 import { hasConnectedCalendar } from "@/app/(app)/[emailAccountId]/meetings/calendar-connection-state";
 import { ConnectCalendar } from "@/app/(app)/[emailAccountId]/calendars/ConnectCalendar";
 
-export default function MeetingsPage() {
+function MeetingsPage() {
   return (
     <>
       <TimezoneDetector />
@@ -197,3 +198,5 @@ function MeetingRecorderPageContent() {
     </PageWrapper>
   );
 }
+
+export default retainWorkspacePage(MeetingsPage);

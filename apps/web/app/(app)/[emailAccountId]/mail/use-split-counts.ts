@@ -6,6 +6,10 @@ import type { MailPredicate } from "@inboxzero/mail-core/queries";
 import { labelNamesToAccountScopedPredicate } from "@/app/(app)/[emailAccountId]/mail/use-combined-mail-threads";
 import type { EmailLabels } from "@/providers/email-label-types";
 import { splitCountTargets } from "@/utils/split-inbox/split-counts";
+import {
+  readTagCountPreview,
+  saveTagCountPreview,
+} from "@/utils/mail-engine/mailbox-preview-cache";
 import type {
   MailSplit,
   PortableLabelSplit,
@@ -44,7 +48,17 @@ export function useSplitCounts({
     [labelsByAccount, portableLabelSplits, stableAccountIds],
   );
   const nextTargets = useMemo(
-    () => splitCountTargets({ splits, overrides }),
+    () => [
+      ...splitCountTargets({ splits, overrides }),
+      {
+        id: "mailbox:spam",
+        predicate: { kind: "mailbox" as const, mailbox: "spam" as const },
+      },
+      {
+        id: "mailbox:trash",
+        predicate: { kind: "mailbox" as const, mailbox: "trash" as const },
+      },
+    ],
     [overrides, splits],
   );
   // Settings refreshes and reorders hand over new split objects with the same
@@ -57,7 +71,17 @@ export function useSplitCounts({
     stableTargetsRef.current = { key: targetsKey, targets: nextTargets };
   }
   const targets = stableTargetsRef.current.targets;
-  const [countsById, setCountsById] = useState(EMPTY_COUNTS);
+  const identity = JSON.stringify({
+    accountIds: [...stableAccountIds].sort(),
+    countSplits: [...splits].sort((a, b) => a.id.localeCompare(b.id)),
+    mailboxViews: true,
+    portableLabelSplits,
+  });
+  const cachedCounts = useMemo(() => readTagCountPreview(identity), [identity]);
+  const [liveCounts, setLiveCounts] = useState({
+    identity: "",
+    counts: EMPTY_COUNTS,
+  });
 
   useEffect(() => {
     if (
@@ -66,7 +90,6 @@ export function useSplitCounts({
       stableAccountIds.length === 0 ||
       targets.length === 0
     ) {
-      setCountsById((current) => (current.size === 0 ? current : EMPTY_COUNTS));
       return;
     }
 
@@ -75,11 +98,18 @@ export function useSplitCounts({
       targets,
     });
     const apply = () => {
-      const next = new Map<string, number>();
-      for (const count of handle.getSnapshot().data?.counts ?? []) {
+      const snapshot = handle.getSnapshot();
+      if (snapshot.status !== "ready" || !snapshot.data) return;
+      const next = new Map(cachedCounts);
+      for (const count of snapshot.data.counts) {
         next.set(count.id, count.matchingConversations);
       }
-      setCountsById((current) => (sameCounts(current, next) ? current : next));
+      saveTagCountPreview(identity, next);
+      setLiveCounts((current) =>
+        current.identity === identity && sameCounts(current.counts, next)
+          ? current
+          : { identity, counts: next },
+      );
     };
     const unsubscribe = handle.subscribe(apply);
     apply();
@@ -87,9 +117,13 @@ export function useSplitCounts({
       unsubscribe();
       handle.close();
     };
-  }, [client, enabled, stableAccountIds, targets]);
+  }, [client, enabled, stableAccountIds, targets, identity, cachedCounts]);
 
-  return countsById;
+  return enabled
+    ? liveCounts.identity === identity
+      ? liveCounts.counts
+      : cachedCounts
+    : EMPTY_COUNTS;
 }
 
 function portableSplitCountOverrides({

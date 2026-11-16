@@ -1,4 +1,5 @@
 "use client";
+import { retainWorkspacePage } from "@/components/retain-workspace-page";
 
 import { useCallback, useState } from "react";
 import Link from "next/link";
@@ -50,7 +51,7 @@ import {
 
 type DriveView = "onboarding" | "setup" | "settings";
 
-export default function DrivePage() {
+function DrivePage() {
   const { emailAccountId } = useAccount();
   const { data, isLoading, error } = useDriveConnections();
   const {
@@ -349,3 +350,5 @@ function DeliveryChannelRow({
     </div>
   );
 }
+
+export default retainWorkspacePage(DrivePage);

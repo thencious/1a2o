@@ -28,7 +28,10 @@ class CalendarAuthProvider implements AuthenticationProvider {
   }
 }
 
-export function getCalendarOAuth2Url(state: string): string {
+export function getCalendarOAuth2Url(
+  state: string,
+  options?: { editing?: boolean; loginHint?: string },
+): string {
   if (!env.MICROSOFT_CLIENT_ID) {
     throw new Error("Microsoft login not enabled - missing client ID");
   }
@@ -40,6 +43,8 @@ export function getCalendarOAuth2Url(state: string): string {
     scope: CALENDAR_SCOPES.join(" "),
     state,
   });
+  if (options?.editing) params.set("prompt", "consent");
+  if (options?.loginHint) params.set("login_hint", options.loginHint);
 
   return `${getMicrosoftOauthAuthorizeUrl()}?${params.toString()}`;
 }
@@ -49,12 +54,14 @@ export const getCalendarClientWithRefresh = async ({
   refreshToken,
   expiresAt,
   emailAccountId,
+  connectionId,
   logger,
 }: {
   accessToken?: string | null;
   refreshToken: string | null;
   expiresAt: number | null;
   emailAccountId: string;
+  connectionId?: string;
   logger: Logger;
 }): Promise<Client> => {
   if (!refreshToken) throw new SafeError("No refresh token");
@@ -104,6 +111,7 @@ export const getCalendarClientWithRefresh = async ({
       where: {
         emailAccountId,
         provider: "microsoft",
+        ...(connectionId ? { id: connectionId } : {}),
       },
       select: { id: true },
     });

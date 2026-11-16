@@ -1,9 +1,10 @@
+import { retainWorkspacePage } from "@/components/retain-workspace-page";
 import { PermissionsCheck } from "@/app/(app)/[emailAccountId]/PermissionsCheck";
 import { BulkUnsubscribe } from "./BulkUnsubscribeSection";
 
 export const maxDuration = 180;
 
-export default async function BulkUnsubscribePage() {
+async function BulkUnsubscribePage() {
   return (
     <>
       <PermissionsCheck />
@@ -11,3 +12,5 @@ export default async function BulkUnsubscribePage() {
     </>
   );
 }
+
+export default retainWorkspacePage(BulkUnsubscribePage);

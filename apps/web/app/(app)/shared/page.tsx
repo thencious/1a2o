@@ -1,8 +1,9 @@
+import { retainWorkspacePage } from "@/components/retain-workspace-page";
 import { PageWrapper } from "@/components/PageWrapper";
 import { SharedConversationList } from "@/app/(app)/shared/SharedConversationList";
 import { SharedTabs } from "@/app/(app)/shared/SharedTabs";
 
-export default function SharedPage() {
+function SharedPage() {
   return (
     <PageWrapper>
       <SharedTabs />
@@ -12,3 +13,5 @@ export default function SharedPage() {
     </PageWrapper>
   );
 }
+
+export default retainWorkspacePage(SharedPage);

@@ -5,6 +5,8 @@ import {
   memo,
   useCallback,
   useEffect,
+  useLayoutEffect,
+  useMemo,
   useRef,
 } from "react";
 import { toast } from "sonner";
@@ -32,13 +34,14 @@ import { Sidebar, useSidebar } from "@/components/ui/sidebar";
 import { TEAM_HREF, useTeamNav } from "@/components/team-comments/use-team-nav";
 import { useFolders } from "@/hooks/useFolders";
 import { useLabelCounts } from "@/hooks/useLabelCounts";
+import { useAccounts } from "@/hooks/useAccounts";
 import { useLabels } from "@/hooks/useLabels";
 import { useSettingsDialog } from "@/hooks/useSettingsDialog";
 import { useAccount } from "@/providers/EmailAccountProvider";
-import { useComposeModal } from "@/providers/ComposeModalProvider";
 import type { EmailLabel } from "@/providers/email-label-types";
 import type { OutlookFolder } from "@/utils/outlook/folders";
-import { persistPanelWidth } from "@/utils/panel-width";
+import { parsePanelWidthCookie, persistPanelWidth } from "@/utils/panel-width";
+import { useMailAccountTheme } from "@/providers/MailAccountThemeProvider";
 import {
   createLabelAction,
   deleteMailboxItemAction,
@@ -50,7 +53,6 @@ import {
 } from "@/utils/email/provider-types";
 import { getActionErrorMessage } from "@/utils/error";
 import { GMAIL_LABEL_COLORS } from "@/utils/gmail/label-colors";
-import type { MailboxLabelCount } from "@/utils/mail-engine/label-count-targets";
 import { OUTLOOK_CATEGORY_COLORS } from "@/utils/outlook/category-colors";
 import { prefixPath } from "@/utils/path";
 import { getEmailTerminology } from "@/utils/terminology";
@@ -60,7 +62,6 @@ const OUTLOOK_LABEL_COLOR_OPTIONS = OUTLOOK_CATEGORY_COLORS.map((option) => ({
   backgroundColor: option.value,
   textColor: "#000000",
 }));
-const NO_COUNTS = new Map<string, MailboxLabelCount>();
 const NO_LABELS: EmailLabel[] = [];
 const NO_FOLDERS: OutlookFolder[] = [];
 const NO_CATEGORIES: MailCategory[] = [];
@@ -97,18 +98,35 @@ export const MailShellSidebar = memo(function MailShellSidebar({
   onMobileNavOpenChange: (open: boolean) => void;
 }) {
   const { emailAccountId, provider } = useAccount();
+  const sidebarTheme = useMailAccountTheme(
+    isAllAccounts ? null : emailAccountId,
+  );
   const isGoogle = isGoogleProvider(provider);
   const isOutlook = isMicrosoftProvider(provider);
   const terminology = getEmailTerminology(provider);
   const { userLabels: allLabels, mutate: mutateLabels } = useLabels();
   const { folders, mutate: mutateFolders } = useFolders(provider);
+  const { data: accountsData } = useAccounts();
+  const countAccountIds = useMemo(
+    () =>
+      isAllAccounts
+        ? (accountsData?.emailAccounts ?? [])
+            .filter(
+              (account) =>
+                account.includeInAllAccounts &&
+                account.account.disconnectedAt === null,
+            )
+            .map((account) => account.id)
+        : [emailAccountId],
+    [accountsData, emailAccountId, isAllAccounts],
+  );
   const { countsById, mutate: mutateCounts } = useLabelCounts({
     emailAccountId,
-    labels: allLabels,
-    folders,
+    accountIds: countAccountIds.length ? countAccountIds : undefined,
+    labels: isAllAccounts ? NO_LABELS : allLabels,
+    folders: isAllAccounts ? NO_FOLDERS : folders,
   });
   const { hasTeam, unreadCount: teamUnreadCount } = useTeamNav();
-  const { onOpen: openCompose } = useComposeModal();
   const { openSettings } = useSettingsDialog();
   const { state: openSidebars } = useSidebar();
   const isMailSidebarOpen = openSidebars.includes("left-sidebar");
@@ -119,6 +137,14 @@ export const MailShellSidebar = memo(function MailShellSidebar({
   const setSidebarWidth = useCallback((width: number) => {
     sidebarScopeRef.current?.style.setProperty("--sidebar-width", `${width}px`);
   }, []);
+  useLayoutEffect(() => {
+    const value = document.cookie
+      .split("; ")
+      .find((cookie) => cookie.startsWith(`${MAIL_SIDEBAR_WIDTH_COOKIE}=`))
+      ?.split("=")[1];
+    const width = parsePanelWidthCookie(value, MAIL_SIDEBAR_WIDTH_BOUNDS);
+    if (width !== null) setSidebarWidth(width);
+  }, [setSidebarWidth]);
   const resetSidebarWidth = useCallback(() => {
     setSidebarWidth(MAIL_SIDEBAR_DEFAULT_WIDTH);
     persistPanelWidth(MAIL_SIDEBAR_WIDTH_COOKIE, null);
@@ -230,10 +256,6 @@ export const MailShellSidebar = memo(function MailShellSidebar({
     onMobileNavOpenChange(false);
     onSelectAllAccounts();
   };
-  const composeFromSheet = () => {
-    onMobileNavOpenChange(false);
-    openCompose();
-  };
   const openSettingsFromSheet = () => {
     onMobileNavOpenChange(false);
     openSettings();
@@ -256,7 +278,7 @@ export const MailShellSidebar = memo(function MailShellSidebar({
       onNavigate={inSheet ? navigateFromSheet : onNavigate}
       labels={isAllAccounts ? NO_LABELS : allLabels}
       folders={isAllAccounts || !isOutlook ? NO_FOLDERS : folders}
-      countsById={isAllAccounts ? NO_COUNTS : countsById}
+      countsById={countsById}
       categories={
         isAllAccounts
           ? NO_CATEGORIES
@@ -267,7 +289,6 @@ export const MailShellSidebar = memo(function MailShellSidebar({
       labelsHeading={terminology.label.pluralCapitalized}
       labelSingular={terminology.label.singular}
       emailAccountId={emailAccountId}
-      onCompose={inSheet ? composeFromSheet : openCompose}
       onOpenSettings={inSheet ? openSettingsFromSheet : openSettings}
       onCreateLabel={onCreateLabel}
       onEditMailboxItem={onEditMailboxItem}
@@ -302,9 +323,11 @@ export const MailShellSidebar = memo(function MailShellSidebar({
     <>
       <div
         ref={sidebarScopeRef}
-        className="hidden lg:contents"
+        className="mail-account-theme hidden lg:contents"
+        data-theme="mail"
         style={
           {
+            ...sidebarTheme,
             "--sidebar-width": `var(--mail-sidebar-width, ${MAIL_SIDEBAR_DEFAULT_WIDTH}px)`,
           } as CSSProperties
         }
@@ -334,9 +357,11 @@ export const MailShellSidebar = memo(function MailShellSidebar({
             event.preventDefault();
             (event.currentTarget as HTMLElement).focus();
           }}
-          className="w-[--sidebar-width] p-0 lg:hidden [&>button]:hidden"
+          className="mail-account-theme w-[--sidebar-width] p-0 lg:hidden [&>button]:hidden"
+          data-theme="mail"
           style={
             {
+              ...sidebarTheme,
               "--sidebar-width": `${MAIL_SIDEBAR_DEFAULT_WIDTH}px`,
             } as CSSProperties
           }

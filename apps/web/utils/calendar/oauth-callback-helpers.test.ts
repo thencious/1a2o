@@ -99,7 +99,7 @@ describe("calendar OAuth callback helpers", () => {
       {
         name: "no return path",
         returnPath: undefined,
-        expected: "/acc_123/calendars",
+        expected: "/settings?calendarAccount=acc_123#calendar-settings",
       },
       {
         name: "same-account onboarding return path",
@@ -109,32 +109,32 @@ describe("calendar OAuth callback helpers", () => {
       {
         name: "different account return path",
         returnPath: encodeURIComponent("/acc_456/briefs"),
-        expected: "/acc_123/calendars",
+        expected: "/settings?calendarAccount=acc_123#calendar-settings",
       },
       {
         name: "return path that normalizes into a different account",
         returnPath: encodeURIComponent("/acc_123/../acc_456/briefs"),
-        expected: "/acc_123/calendars",
+        expected: "/settings?calendarAccount=acc_123#calendar-settings",
       },
       {
         name: "external return path",
         returnPath: encodeURIComponent("https://example.com/briefs"),
-        expected: "/acc_123/calendars",
+        expected: "/settings?calendarAccount=acc_123#calendar-settings",
       },
       {
         name: "malformed encoded value",
         returnPath: "%E0%A4%A",
-        expected: "/acc_123/calendars",
+        expected: "/settings?calendarAccount=acc_123#calendar-settings",
       },
       {
         name: "control-character redirect bypass attempt",
         returnPath: encodeURIComponent("/\t/r3d.fi"),
-        expected: "/acc_123/calendars",
+        expected: "/settings?calendarAccount=acc_123#calendar-settings",
       },
       {
         name: "overlapping account ID prefix",
         returnPath: encodeURIComponent("/acc_1234/briefs"),
-        expected: "/acc_123/calendars",
+        expected: "/settings?calendarAccount=acc_123#calendar-settings",
       },
     ])("returns expected path for $name", ({ returnPath, expected }) => {
       expect(getCalendarRedirectPath("acc_123", returnPath)).toBe(expected);

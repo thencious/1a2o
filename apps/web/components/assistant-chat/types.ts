@@ -1,4 +1,6 @@
-import type { UIMessage } from "ai";
+import type { UIMessage, InferUITool } from "ai";
+import type { SlashContext } from "@/utils/messages/slash-context";
+import type { zenroTools } from "@/utils/ai/assistant/zenro-tools";
 import type { AddToKnowledgeBaseTool } from "@/utils/ai/assistant/tools/rules/add-to-knowledge-base-tool";
 import type { CreateRuleTool } from "@/utils/ai/assistant/tools/rules/create-rule-tool";
 import type { GetLearnedPatternsTool } from "@/utils/ai/assistant/tools/rules/get-learned-patterns-tool";
@@ -37,6 +39,10 @@ import type { GetCalendarEventsTool } from "@/utils/ai/assistant/chat-calendar-t
 // export type MessageMetadata = z.infer<typeof messageMetadataSchema>;
 
 export type ChatTools = {
+  discoverZenroTools: InferUITool<
+    ReturnType<typeof zenroTools>["discoverZenroTools"]
+  >;
+  runZenroTool: InferUITool<ReturnType<typeof zenroTools>["runZenroTool"]>;
   getAssistantCapabilities: GetAssistantCapabilitiesTool;
   updateAssistantSettings: UpdateAssistantSettingsTool;
   getAccountOverview: GetAccountOverviewTool;
@@ -78,8 +84,7 @@ export type CustomUIDataTypes = {
 };
 
 export type ChatMessage = UIMessage<
-  // biome-ignore lint/complexity/noBannedTypes: ignore
-  {}, // MessageMetadata,
+  { sourceContext?: SlashContext },
   CustomUIDataTypes,
   ChatTools
 >;

@@ -96,7 +96,7 @@ export function useReplyDraftPersistence({
 
   const capture = useCallback(
     (deliveryTimes?: DraftDeliveryTimes) => {
-      if (!writer || stopped.current) return;
+      if (!writer || stopped.current || !mounted.current) return;
       dirty.current = true;
       if (deliveryTimes)
         pendingDeliveryTimes.current = {
@@ -147,12 +147,12 @@ export function useReplyDraftPersistence({
     };
   }, [flush]);
 
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
       mounted.current = false;
-    },
-    [],
-  );
+    };
+  }, []);
 
   return { capture, clear, flush, saveError };
 }

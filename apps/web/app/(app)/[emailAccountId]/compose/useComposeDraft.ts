@@ -52,6 +52,7 @@ import { followProviderDraftMessage } from "./follow-provider-draft-message";
 import type { createInitialComposeContent } from "./initial-compose-content";
 import { getReplyToEmailPayload } from "./reply-to-email-payload";
 import { forgetAttachedFiles, resolveDraftId } from "./upload-draft-attachment";
+import { beginDraftSync } from "@/utils/mail-engine/draft-sync-guard";
 
 export function useComposeDraft({
   emailAccountId,
@@ -260,30 +261,38 @@ export function useComposeDraft({
     getContent: getProviderDraftContent,
     save: (content) =>
       enqueueDraftOperation(draftQueueKey, async () => {
-        if (!providerDraftMessageId) {
-          const draftId = await ensureProviderDraft();
-          const result = await saveComposeDraftAction(emailAccountId, {
-            draftId,
-            content,
+        const release = localDraftIdentity
+          ? beginDraftSync(emailAccountId, localDraftIdentity.threadId)
+          : () => {};
+        try {
+          if (!providerDraftMessageId) {
+            const draftId = await ensureProviderDraft();
+            const result = await saveComposeDraftAction(emailAccountId, {
+              draftId,
+              content,
+            });
+            if (!result?.data)
+              throw new Error(getDraftSyncErrorMessage(result));
+            await followDraftMessage(result.data.messageId);
+            return;
+          }
+          const result = await updateDraftAction(emailAccountId, {
+            ...content,
+            draftMessageId: providerDraftMessageId,
+            draftId: providerDraftId.current,
           });
           if (!result?.data) throw new Error(getDraftSyncErrorMessage(result));
+          if (result.data.status === "missing")
+            throw new DraftAutosaveHaltedError(
+              "This draft was sent, deleted, or changed elsewhere, so edits here are no longer saved to your mailbox.",
+            );
+          providerDraftId.current = result.data.draftId;
+          captureLocalDraft();
+          await flushDraft();
           await followDraftMessage(result.data.messageId);
-          return;
+        } finally {
+          release();
         }
-        const result = await updateDraftAction(emailAccountId, {
-          ...content,
-          draftMessageId: providerDraftMessageId,
-          draftId: providerDraftId.current,
-        });
-        if (!result?.data) throw new Error(getDraftSyncErrorMessage(result));
-        if (result.data.status === "missing")
-          throw new DraftAutosaveHaltedError(
-            "This draft was sent, deleted, or changed elsewhere, so edits here are no longer saved to your mailbox.",
-          );
-        providerDraftId.current = result.data.draftId;
-        captureLocalDraft();
-        await flushDraft();
-        await followDraftMessage(result.data.messageId);
       }),
   });
   const { stop: stopProviderAutosave, resume: resumeProviderAutosave } =

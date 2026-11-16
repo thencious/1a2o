@@ -14,18 +14,20 @@ import type { MailSettingsResponse } from "@/app/api/mail/settings/route";
 import { EMAIL_ACCOUNT_HEADER } from "@/utils/config";
 import { getEmailAccount } from "../account-test-helpers";
 
-test("returns from Assistant to All Accounts mail", async ({
+test("opens assistant tools from mail and returns to All Accounts", async ({
   page,
 }, testInfo) => {
   await openMail(page);
+  await page.getByRole("button", { name: "Tools", exact: true }).click();
   await page
-    .getByRole("navigation", { name: "App sections" })
-    .getByRole("link", { name: "Assistant", exact: true })
+    .getByRole("navigation", { name: "Tools", exact: true })
+    .getByRole("link", { name: "Rules", exact: true })
     .click();
   await expect(page).toHaveURL(/\/automation/);
-  const mail = page
-    .getByRole("navigation", { name: "App sections" })
-    .getByRole("link", { name: "Mail", exact: true });
+  await expect(
+    page.getByRole("navigation", { name: "App sections" }),
+  ).toHaveCount(0);
+  const mail = page.getByRole("link", { name: "Mail", exact: true });
   await expect(mail).toHaveAttribute("href", /accountScope=all.*split=all/);
   await mail.click();
   await expect(

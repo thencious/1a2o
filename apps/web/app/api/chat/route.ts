@@ -27,6 +27,7 @@ import {
 } from "@/utils/ai/assistant/compact";
 import { getInboxStatsForChatContext } from "@/utils/ai/assistant/get-inbox-stats-for-chat-context";
 import { formatUtcDate } from "@/utils/date";
+import { commandOriginText } from "@/utils/messages/slash-context";
 import {
   buildUserChatMessageMetadata,
   mapUiMessagesToChatMessageRows,
@@ -169,6 +170,7 @@ export const POST = withEmailAccount("chat", async (request) => {
         runId: chatRunId,
         context,
         inlineActions,
+        sourceContext: data.sourceContext,
       }),
     });
 
@@ -189,20 +191,36 @@ export const POST = withEmailAccount("chat", async (request) => {
 
     const conversationUiMessages = [
       ...convertToUIMessages({ ...chat, messages: messagesForModel }),
-      message,
-    ];
-
-    const uiMessages = [
-      ...conversationUiMessages,
-      ...(hiddenInlineActionMessage ? [hiddenInlineActionMessage] : []),
+      {
+        ...message,
+        ...(data.sourceContext
+          ? { metadata: { sourceContext: data.sourceContext } }
+          : {}),
+      },
     ];
 
     const conversationModelMessages = await convertToModelMessages(
-      conversationUiMessages,
+      conversationUiMessages.map((item) =>
+        item.metadata?.sourceContext
+          ? {
+              ...item,
+              parts: [
+                ...item.parts,
+                {
+                  type: "text" as const,
+                  text: commandOriginText(item.metadata.sourceContext),
+                },
+              ],
+            }
+          : item,
+      ),
     );
 
     let modelMessages = hiddenInlineActionMessage
-      ? await convertToModelMessages(uiMessages)
+      ? [
+          ...conversationModelMessages,
+          ...(await convertToModelMessages([hiddenInlineActionMessage])),
+        ]
       : conversationModelMessages;
 
     if (latestCompaction) {

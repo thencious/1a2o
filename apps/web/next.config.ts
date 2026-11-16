@@ -33,6 +33,7 @@ const microsoftEmulatorOrigin = env.MICROSOFT_BASE_URL
   : null;
 
 const nextConfig: NextConfig = {
+  distDir: env.LOCAL_NEXT_BUILD_DIR ?? ".next",
   allowedDevOrigins: [
     "127.0.0.1",
     ...(URL.canParse(env.NEXT_PUBLIC_BASE_URL)
@@ -129,6 +130,9 @@ const nextConfig: NextConfig = {
           [
             "connect-src 'self' https: wss: https://*.mux.com https://*.litix.io",
             microsoftEmulatorOrigin,
+            env.LOCAL_AGENTS_ENABLED === "true"
+              ? new URL(env.NEXT_PUBLIC_BASE_URL).origin.replace(/^http/, "ws")
+              : null,
           ]
             .filter(Boolean)
             .join(" "),
@@ -177,6 +181,21 @@ const nextConfig: NextConfig = {
         headers: securityHeaders,
         // Auth routes: security headers only, CORS handled by better-auth based on trustedOrigins
         source: "/api/auth/:path*",
+      },
+      {
+        source: "/api/user/todo/app",
+        headers: securityHeaders.map((header) => ({
+          ...header,
+          value:
+            header.key === "X-Frame-Options"
+              ? "SAMEORIGIN"
+              : header.key === "Content-Security-Policy"
+                ? header.value.replace(
+                    "frame-ancestors 'none'",
+                    "frame-ancestors 'self'",
+                  )
+                : header.value,
+        })),
       },
       {
         headers: [
@@ -405,6 +424,14 @@ const nextConfig: NextConfig = {
   },
   async rewrites() {
     return [
+      ...(env.LOCAL_AGENTS_ENABLED === "true"
+        ? [
+            {
+              source: "/api/local-agents-terminal",
+              destination: "http://127.0.0.1:3011/terminal",
+            },
+          ]
+        : []),
       {
         destination: "https://app.posthog.com/:path*",
         source: "/ingest/:path*",
@@ -441,6 +468,9 @@ const nextConfig: NextConfig = {
   // Skip TypeScript checking during Docker/E2E CI builds to save memory.
   // App typechecking is covered by the Build Check workflow.
   typescript: {
+    tsconfigPath: env.LOCAL_NEXT_BUILD_DIR
+      ? "tsconfig.release.json"
+      : "tsconfig.json",
     ignoreBuildErrors: process.env.SKIP_TYPE_CHECK === "true",
   },
   webpack: (config) => {

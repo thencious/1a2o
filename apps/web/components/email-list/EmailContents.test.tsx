@@ -121,7 +121,7 @@ describe("HtmlEmail", () => {
     expect(document.body.classList.contains("dark")).toBe(true);
   });
 
-  it("does not put designed html emails into the app dark color scheme", async () => {
+  it("puts designed html emails into the app dark color scheme", async () => {
     mockTheme.theme = "dark";
     mockTheme.resolvedTheme = "dark";
     const html = `<html><head><style>
@@ -145,14 +145,14 @@ describe("HtmlEmail", () => {
       iframe.srcdoc,
       "text/html",
     );
-    expect(iframe.style.colorScheme).toBe("light");
-    expect(document.documentElement.classList.contains("dark")).toBe(false);
-    expect(document.body.classList.contains("dark")).toBe(false);
+    expect(iframe.style.colorScheme).toBe("dark");
+    expect(document.documentElement.classList.contains("dark")).toBe(true);
+    expect(document.body.classList.contains("dark")).toBe(true);
     expect(
       document
         .querySelector('meta[name="color-scheme"]')
         ?.getAttribute("content"),
-    ).toBe("light");
+    ).toBe("dark");
     expect(iframe.srcdoc).toContain(
       "prefers-color-scheme: inbox-zero-authored",
     );
@@ -161,7 +161,7 @@ describe("HtmlEmail", () => {
     );
   });
 
-  it("treats uppercase designed markup as authored html", async () => {
+  it("themes uppercase designed markup in dark mode", async () => {
     mockTheme.theme = "dark";
     mockTheme.resolvedTheme = "dark";
     const html = `<HTML><HEAD><STYLE>
@@ -180,7 +180,7 @@ describe("HtmlEmail", () => {
     const iframe = (await findByTitle(
       "Email content preview",
     )) as HTMLIFrameElement;
-    expect(iframe.style.colorScheme).toBe("light");
+    expect(iframe.style.colorScheme).toBe("dark");
     expect(iframe.srcdoc).toContain(
       "prefers-color-scheme: inbox-zero-authored",
     );

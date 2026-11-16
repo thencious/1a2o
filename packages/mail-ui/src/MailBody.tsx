@@ -246,7 +246,7 @@ export function buildMailHtmlDocument({
   darkBackgroundHsl?: string;
 }) {
   const styleAttributeCount = (html.match(/style=/gi) || []).length;
-  const hasHeavyStyling = isDesignedHtmlEmail(html);
+  const hasHeavyStyling = !isDarkMode && isDesignedHtmlEmail(html);
 
   const hasMinimalStyling =
     !hasHeavyStyling &&
@@ -285,6 +285,18 @@ export function buildMailHtmlDocument({
         --foreground: 220 8% 92%;
         --muted-foreground: 220 5% 62%;
         --background: ${darkBackgroundHsl};
+      }
+
+      .dark body {
+        color: hsl(var(--foreground)) !important;
+        background: hsl(var(--background)) !important;
+      }
+      .dark body *:not(img):not(svg):not(svg *) {
+        color: inherit !important;
+        background-color: transparent !important;
+      }
+      .dark body blockquote, .dark body .gmail_quote {
+        color: hsl(var(--muted-foreground)) !important;
       }
 
       table { max-width: 100% !important; overflow-x: auto; }
@@ -372,12 +384,13 @@ export function buildMailHtmlDocument({
     // Keeps the body's selection the active color while focus is in the
     // host, so a conversation-wide selection reads as one.
     defaultFontCss: `${defaultFontCss}\n::selection { background-color: Highlight; }`,
-    shouldDisableAuthoredDarkColorScheme: hasHeavyStyling,
+    shouldDisableAuthoredDarkColorScheme: hasHeavyStyling || isDarkMode,
+    darkBackgroundHsl,
   });
 }
 
-export function shouldApplyDarkMailTheme(html: string, isDarkMode: boolean) {
-  return isDarkMode && !isDesignedHtmlEmail(html);
+export function shouldApplyDarkMailTheme(_html: string, isDarkMode: boolean) {
+  return isDarkMode;
 }
 
 export function getMailHtmlDocumentKey(
@@ -620,16 +633,9 @@ function useMailHtmlFrame(
 }
 
 function isDesignedHtmlEmail(html: string) {
-  const markup = html.toLowerCase();
-  const styleAttributeCount = (markup.match(/style=/g) || []).length;
-  return (
-    markup.includes("bgcolor") ||
-    markup.includes("background") ||
-    markup.includes("<style") ||
-    styleAttributeCount > 1 ||
-    markup.includes("font-family") ||
-    markup.includes("font-size")
-  );
+  // Conversation quotes, font choices, and tracking pixels also carry inline
+  // styles. Only actual layout markup should opt out of the reader palette.
+  return /<table\b|<style\b|background(?:-image)?\s*:\s*url\(/i.test(html);
 }
 
 type StructuredMailHtmlDocumentInput = {
@@ -639,6 +645,7 @@ type StructuredMailHtmlDocumentInput = {
   contentSecurityPolicy: string;
   defaultFontCss: string;
   shouldDisableAuthoredDarkColorScheme: boolean;
+  darkBackgroundHsl: string;
 };
 
 function buildStructuredMailHtmlDocument({
@@ -648,6 +655,7 @@ function buildStructuredMailHtmlDocument({
   contentSecurityPolicy,
   defaultFontCss,
   shouldDisableAuthoredDarkColorScheme,
+  darkBackgroundHsl,
 }: StructuredMailHtmlDocumentInput) {
   const mailDocument = new DOMParser().parseFromString(html || "", "text/html");
 
@@ -662,6 +670,7 @@ function buildStructuredMailHtmlDocument({
     defaultFontCss,
   });
   applyDarkModeClass(mailDocument, isDarkMode);
+  if (isDarkMode) applyDarkMailPalette(mailDocument, darkBackgroundHsl);
 
   return `<!doctype html>
 ${mailDocument.documentElement.outerHTML}`;
@@ -728,4 +737,39 @@ function applyDarkModeClass(mailDocument: Document, isDarkMode: boolean) {
 
   mailDocument.documentElement.classList.add("dark");
   mailDocument.body.classList.add("dark");
+}
+
+function applyDarkMailPalette(mailDocument: Document, background: string) {
+  // Inline important declarations also beat sender CSS with IDs, media rules,
+  // and important styles. This changes only the display copy of the message.
+  const root = mailDocument.documentElement;
+  root.style.setProperty("--background", background, "important");
+  root.style.setProperty("--foreground", "220 8% 92%", "important");
+  root.style.setProperty("background", `hsl(${background})`, "important");
+  root.style.setProperty("color-scheme", "dark", "important");
+  for (const element of mailDocument.querySelectorAll<HTMLElement>(
+    "body, body *",
+  )) {
+    if (!element.style || element.closest("svg")) continue;
+    element.style.setProperty("background", "transparent", "important");
+    element.style.setProperty(
+      "color",
+      element.matches("blockquote, .gmail_quote")
+        ? "hsl(220 5% 62%)"
+        : "inherit",
+      "important",
+    );
+    element.style.setProperty(
+      "-webkit-text-fill-color",
+      "currentColor",
+      "important",
+    );
+    element.style.setProperty("text-shadow", "none", "important");
+  }
+  mailDocument.body.style.setProperty(
+    "background",
+    `hsl(${background})`,
+    "important",
+  );
+  mailDocument.body.style.setProperty("color", "hsl(220 8% 92%)", "important");
 }

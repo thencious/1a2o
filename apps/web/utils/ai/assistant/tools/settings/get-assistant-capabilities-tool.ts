@@ -37,6 +37,21 @@ export const getAssistantCapabilitiesTool = ({
 
         return {
           snapshotVersion: "2026-07-30",
+          appCapabilities: {
+            discoveryTool: "discoverZenroTools",
+            executionTool: "runZenroTool",
+            areas: [
+              "messages",
+              "contacts",
+              "calendars",
+              "tasks",
+              "notes",
+              "agents",
+              "rules",
+              "settings",
+              "usage",
+            ],
+          },
           account: {
             email: snapshot.email,
             provider,

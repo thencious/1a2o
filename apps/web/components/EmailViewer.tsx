@@ -72,7 +72,10 @@ export function ThreadContent({
 
   return (
     <ErrorBoundary extra={{ component: "ThreadContent", threadId }}>
-      <LoadingContent loading={isLoading} error={error}>
+      <LoadingContent
+        loading={isLoading && !data}
+        error={data ? undefined : error}
+      >
         {data && (
           <EmailThread
             key={data.thread.id}

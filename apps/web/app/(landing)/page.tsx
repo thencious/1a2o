@@ -40,7 +40,7 @@ export default function NewLanding() {
       <Hero
         badge={
           <SectionLink sectionId={EMAIL_CLIENT_SECTION_ID}>
-            New: Inbox Zero Mail app →
+            New: 1a2o Mail app →
           </SectionLink>
         }
         title={

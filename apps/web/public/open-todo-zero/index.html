@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <base href="/open-todo-zero/">
+    <!--INBOX_TODO_BOOTSTRAP-->
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#171717">
+    <meta
+      name="description"
+      content="Simple notes and tasks. Write directly in formatted notes, or switch to raw Markdown."
+    >
+    <title>1a2o Tasks</title>
+    <link rel="icon" href="/branding/1a2o.png?v=1">
+    <link rel="stylesheet" href="vendor/toastui-editor.css">
+    <link rel="stylesheet" href="vendor/toastui-editor-dark.css">
+    <link rel="stylesheet" href="styles.css">
+    <script defer src="browser-cloud-client.js?v=1"></script>
+    <script defer src="offline-host.js?v=1"></script>
+    <script defer src="vendor/purify.js"></script>
+    <script defer src="vendor/toastui-editor.js"></script>
+    <script defer src="host.js?v=overdue-section-1"></script>
+    <script defer src="columns.js?v=notes-1"></script>
+    <script defer src="deadlines.js"></script>
+    <script defer src="openrouter.js?v=task-fast-1"></script>
+    <script defer src="notifications.js?v=notes-transfer-1"></script>
+    <script defer src="cloud.js"></script>
+    <script defer src="app.js?v=ai-queue-2"></script>
+    <link rel="stylesheet" href="host.css?v=overdue-section-1">
+  </head>
+  <body class="zenro-tasks">
+    <main>
+      <div class="workspace" id="workspace">
+        <section class="task-pane" aria-label="Task list">
+          <div class="list-tools">
+            <div role="group" class="filters" aria-label="Filter tasks">
+              <button
+                type="button"
+                class="filter active"
+                data-filter="all"
+                aria-pressed="true"
+              >
+                All
+              </button><button
+                type="button"
+                class="filter"
+                data-filter="active"
+                aria-pressed="false"
+              >
+                Active
+              </button><button
+                type="button"
+                class="filter"
+                data-filter="completed"
+                aria-pressed="false"
+              >
+                Completed
+              </button>
+            </div>
+            <div class="search-wrap" id="search-wrap" hidden>
+              <input
+                id="search"
+                type="search"
+                placeholder="Search…"
+                aria-label="Search tasks and notes"
+              >
+            </div>
+            <div class="toolbar-actions">
+              <button
+                type="button"
+                class="icon-button"
+                id="search-toggle"
+                aria-label="Search tasks"
+                aria-expanded="false"
+                title="Search tasks"
+              >
+                <svg viewBox="0 0 24 24">
+                  <circle cx="10.5" cy="10.5" r="6.5" />
+                  <path d="m16 16 4 4" />
+                </svg>
+              </button><button
+                type="button"
+                id="settings-open"
+                class="icon-button"
+                aria-label="Deadline and notification settings"
+                title="Deadline and notification settings"
+              >
+                <svg viewBox="0 0 24 24">
+                  <path d="M4 6h16M4 12h16M4 18h16" />
+                  <circle cx="8" cy="6" r="2" />
+                  <circle cx="16" cy="12" r="2" />
+                  <circle cx="10" cy="18" r="2" />
+                </svg>
+              </button>
+            </div>
+          </div>
+          <div id="task-list" tabindex="-1"></div>
+        </section>
+        <aside class="detail-pane" id="detail-pane" aria-label="Task notes">
+          <div id="detail-empty" class="detail-empty" hidden>
+            Select a task to edit notes.
+          </div>
+          <div id="detail-content">
+            <div class="detail-topline">
+              <input
+                id="detail-status"
+                class="detail-complete"
+                type="checkbox"
+                aria-label="Complete task"
+              ><input
+                class="detail-title"
+                id="detail-title"
+                aria-label="Task title"
+                maxlength="250"
+                enterkeyhint="done"
+              >
+              <div class="notes-actions">
+                <button type="button" id="add-to-notes" class="source-toggle">
+                  + Add to notes
+                </button><button
+                  type="button"
+                  id="update-ai"
+                  class="source-toggle"
+                  title="Update the deadline and work estimate from this task and its notes"
+                >
+                  Update AI
+                </button><button
+                  type="button"
+                  id="source-toggle"
+                  class="source-toggle"
+                  aria-pressed="false"
+                  title="Show raw Markdown"
+                >
+                  &lt;/&gt; Markdown
+                </button>
+              </div>
+              <button
+                type="button"
+                class="icon-button"
+                id="delete-task"
+                aria-label="Delete task"
+                title="Delete task"
+              >
+                <svg viewBox="0 0 24 24">
+                  <path d="M4 6h16M9 6V3h6v3M6 6l1 15h10l1-15M10 10v7m4-7v7" />
+                </svg>
+              </button>
+            </div>
+            <div class="deadline-fields">
+              <label for="due-date"
+                >Due
+                <input
+                  id="due-date"
+                  type="date"
+                  aria-label="Deadline date"
+                ></label
+              ><label for="due-time"
+                ><input
+                  id="due-time"
+                  type="time"
+                  step="1"
+                  aria-label="Deadline time"
+                ></label
+              ><button
+                type="button"
+                id="deadline-clear"
+                class="icon-button"
+                aria-label="Clear deadline"
+                title="Clear deadline"
+              >
+                ×
+              </button>
+              <div class="note-meta">
+                <select id="priority" aria-label="Task priority">
+                  <option value="urgent">Urgent</option>
+                  <option value="important">Important</option>
+                  <option value="unimportant">Unimportant</option>
+                </select><span id="estimate-label"></span>
+              </div>
+              <span id="deadline-feedback" role="status"></span>
+            </div>
+            <div class="editor-box">
+              <div
+                role="group"
+                id="editor-mount"
+                aria-label="Notes editor"
+              ></div>
+            </div>
+            <div class="notes-footer">
+              <span id="storage-status" role="status">Saved on this device</span
+              ><span id="word-count"></span>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </main>
+    <div id="toast" class="toast" role="status" hidden>
+      <span id="toast-message"></span
+      ><button type="button" id="undo">Undo</button
+      ><button
+        type="button"
+        id="dismiss-toast"
+        aria-label="Dismiss notification"
+      >
+        ×
+      </button>
+    </div>
+    <dialog id="settings-dialog">
+      <div class="settings-heading">
+        <h2>Deadlines & alerts</h2>
+        <button
+          type="button"
+          id="settings-close"
+          class="icon-button"
+          aria-label="Close settings"
+        >
+          ×
+        </button>
+      </div>
+      <p class="local-clock" id="local-clock"></p>
+      <p>
+        OpenRouter calculates deadlines, work estimates and calendar dates.
+        Configure interpretation rules, urgency and alert timing in Tools &gt;
+        Rules &gt; Tasks. Deadlines use the task reference time and your local
+        timezone; date-only calendar entries are all-day events.
+      </p>
+      <h3>OpenRouter</h3>
+      <p>
+        Free models only, with a $0 price ceiling. Model order: Nemotron 3.5
+        Super VL, then Nemotron 3 Ultra if unavailable. Requests use your
+        OpenRouter free-model quota. If the quota is exhausted, analysis stops.
+      </p>
+      <p>
+        AI runs only when a new task is confirmed, an edited task title is
+        confirmed, or Update AI is clicked in the notes editor. Confirm new
+        tasks and title edits with Enter. Switching windows or leaving an input
+        keeps the draft and never calls AI. Editing notes or connecting
+        OpenRouter never calls AI automatically. Task text is sent to OpenRouter
+        when connected. AI uses the existing 1a2o connection and shared daily
+        allowance. No API key is stored in this checklist.
+      </p>
+      <p id="openrouter-status" role="status"></p>
+      <div class="settings-actions">
+        <button type="button" id="openrouter-connect">Connect OpenRouter</button
+        ><button type="button" id="openrouter-disconnect">Disconnect</button>
+      </div>
+      <p>
+        Automatic urgency and deadline alerts follow your task rules. Calendar
+        entries use the default calendar selected below.
+      </p>
+      <h3>Notifications</h3>
+      <button type="button" id="enable-notifications">
+        Enable browser notifications
+      </button>
+      <p id="notification-status" role="status"></p>
+      <label for="ntfy-topic">ntfy topic URL</label>
+      <input
+        id="ntfy-topic"
+        type="url"
+        placeholder="https://ntfy.sh/your-private-topic"
+      ><label for="ntfy-token"
+        >ntfy access token (optional; stored securely)</label
+      ><input id="ntfy-token" type="password" autocomplete="off">
+      <div class="settings-actions">
+        <button type="button" id="ntfy-save">Save ntfy settings</button>
+      </div>
+      <p id="ntfy-status" role="status"></p>
+      <p>
+        Subscribe to the same topic in ntfy. Scheduled ntfy alerts can arrive
+        after closing. 1a2o schedules reminders in the background while this
+        computer is on. Already queued alerts can arrive after shutdown. Browser
+        notifications need the task tab open.
+      </p>
+    </dialog>
+  </body>
+</html>

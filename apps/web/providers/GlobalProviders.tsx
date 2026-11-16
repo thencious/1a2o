@@ -56,7 +56,9 @@ function ManageServiceWorker() {
   useEffect(() => {
     if (!serwist) return;
 
-    const isDesktopApp = Boolean(getInboxZeroDesktopApp());
+    const isDesktopApp =
+      Boolean(getInboxZeroDesktopApp()) ||
+      Boolean(window.matchMedia?.("(display-mode: standalone)").matches);
     const pageLoadedAt = Date.now();
     let hadController = Boolean(navigator.serviceWorker.controller);
     let lastCheckedAt: number | null = null;

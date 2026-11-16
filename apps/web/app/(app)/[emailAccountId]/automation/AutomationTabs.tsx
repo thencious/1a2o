@@ -8,9 +8,11 @@ import { Process } from "@/app/(app)/[emailAccountId]/assistant/Process";
 import { SettingsTab } from "@/app/(app)/[emailAccountId]/assistant/settings/SettingsTab";
 import { RulesTab } from "@/app/(app)/[emailAccountId]/assistant/RulesTabNew";
 import { useInfiniteMessages } from "@/hooks/useMessages";
+import { LocalRulesPanel } from "./LocalRulesPanel";
+import { TaskRulesPanel } from "./TaskRulesPanel";
 
 const automationTabs = ["rules", "test", "history", "settings"] as const;
-type AutomationTab = (typeof automationTabs)[number];
+export type AutomationTab = (typeof automationTabs)[number];
 
 const defaultTab: AutomationTab = "rules";
 
@@ -34,6 +36,77 @@ const tabOptions = [
 ] satisfies { id: AutomationTab; label: string }[];
 
 export function AutomationTabs() {
+  const [domain, setDomain] = useQueryState("domain", {
+    defaultValue: "mail",
+    history: "push",
+  });
+  const [tab, setTab] = useQueryState("tab", {
+    defaultValue: defaultTab,
+    history: "push",
+  });
+  const selectedDomain =
+    domain === "messages" || domain === "calendars" || domain === "tasks"
+      ? domain
+      : "mail";
+  const selectedTab = isAutomationTab(tab) ? tab : defaultTab;
+  return (
+    <>
+      <div
+        role="group"
+        className="border-b border-border"
+        aria-label="Rule domains"
+      >
+        <TabSelect
+          options={[
+            { id: "mail", label: "Mail" },
+            { id: "messages", label: "Messages" },
+            { id: "calendars", label: "Calendars" },
+            { id: "tasks", label: "Tasks" },
+          ]}
+          selected={selectedDomain}
+          onSelect={(value: "mail" | "messages" | "calendars" | "tasks") =>
+            setDomain(value === "mail" ? null : value)
+          }
+        />
+      </div>
+      {selectedDomain === "tasks" ? (
+        <>
+          <div className="border-b border-neutral-200 pt-2">
+            <TabSelect
+              options={[{ id: "rules", label: "Rules" }]}
+              selected="rules"
+              onSelect={() => setTab(null)}
+            />
+          </div>
+          <div className="mt-2 mb-10">
+            <TaskRulesPanel />
+          </div>
+        </>
+      ) : selectedDomain === "mail" ? (
+        <MailAutomationTabs />
+      ) : (
+        <>
+          <AutomationTabNav
+            selected={selectedTab}
+            onSelect={(value) => setTab(value === defaultTab ? null : value)}
+          />
+          <div className="mt-2 mb-10">
+            <LocalRulesPanel
+              key={selectedDomain}
+              domain={selectedDomain}
+              tab={selectedTab}
+              onTabChange={(value) =>
+                setTab(value === defaultTab ? null : value)
+              }
+            />
+          </div>
+        </>
+      )}
+    </>
+  );
+}
+
+function MailAutomationTabs() {
   const [tab, setTab] = useQueryState("tab", {
     defaultValue: defaultTab,
     history: "push",
@@ -50,13 +123,7 @@ export function AutomationTabs() {
 
   return (
     <>
-      <div className="border-b border-neutral-200 pt-2">
-        <TabSelect
-          options={tabOptions}
-          selected={selectedTab}
-          onSelect={onSelect}
-        />
-      </div>
+      <AutomationTabNav selected={selectedTab} onSelect={onSelect} />
 
       <div className="mt-2 mb-10">
         {selectedTab === "rules" && <RulesTab />}
@@ -89,4 +156,18 @@ function usePrefetchTestTabMessages(selectedTab: AutomationTab) {
 
 function isAutomationTab(value: string): value is AutomationTab {
   return automationTabs.includes(value as AutomationTab);
+}
+
+function AutomationTabNav({
+  selected,
+  onSelect,
+}: {
+  selected: AutomationTab;
+  onSelect: (tab: AutomationTab) => void;
+}) {
+  return (
+    <div className="border-b border-neutral-200 pt-2">
+      <TabSelect options={tabOptions} selected={selected} onSelect={onSelect} />
+    </div>
+  );
 }

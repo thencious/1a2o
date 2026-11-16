@@ -10,7 +10,7 @@ export async function openCalendars(page: Page) {
 
   await navigateUntilReady(
     page,
-    `/${emailAccountId}/calendars`,
+    `/settings?calendarAccount=${encodeURIComponent(emailAccountId)}#calendar-settings`,
     page.getByRole("heading", { name: "Calendars", exact: true }),
   );
   return { emailAccountId };

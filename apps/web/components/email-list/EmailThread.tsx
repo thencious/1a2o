@@ -32,6 +32,7 @@ import { internalDateToDate } from "@/utils/date";
 import { GmailLabel } from "@/utils/gmail/label";
 import { useSentMessageOpens } from "@/hooks/useSentMessageOpens";
 import type { OutgoingThreadMessage } from "@/utils/mail-engine/conversation-thread";
+import { useDraftSyncMessages } from "@/hooks/useDraftSyncMessages";
 
 const NO_OUTGOING: OutgoingThreadMessage[] = [];
 // A send that never reaches the thread, or a body that never measures, must not
@@ -39,7 +40,7 @@ const NO_OUTGOING: OutgoingThreadMessage[] = [];
 const SENT_REPLY_HANDOFF_TIMEOUT_MS = 1000;
 
 export function EmailThread({
-  messages,
+  messages: liveMessages,
   missingBodyIds,
   outgoing = NO_OUTGOING,
   sendOperationIds,
@@ -89,6 +90,7 @@ export function EmailThread({
   }) => ReactNode;
 }) {
   const { emailAccountId, userEmail } = useAccount();
+  const messages = useDraftSyncMessages(emailAccountId, liveMessages);
   const threadId = messages[0]?.threadId ?? "";
   const { drafts: localDrafts, isLoading: draftsLoading } = useReplyDrafts(
     emailAccountId,

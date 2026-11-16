@@ -24,6 +24,9 @@ export function initializeBatchQueue(db,now=Date.now()) {
   for(const [column,type] of [['head_after','INTEGER NOT NULL DEFAULT 0'],['head_started','INTEGER NOT NULL DEFAULT 0'],['head_cursor','TEXT']]){
     if(!db.prepare('PRAGMA table_info(accounts)').all().some(field=>field.name===column)) db.exec(`ALTER TABLE accounts ADD COLUMN ${column} ${type}`);
   }
+  for(const [column,type] of [['failure_day','TEXT'],['failures_today','INTEGER NOT NULL DEFAULT 0']]) {
+    if(!db.prepare('PRAGMA table_info(jobs)').all().some(field=>field.name===column)) db.exec(`ALTER TABLE jobs ADD COLUMN ${column} ${type}`);
+  }
   db.prepare("INSERT OR IGNORE INTO settings(key,value) VALUES('new_mail_since',?)").run(String(now));
   db.exec('CREATE INDEX IF NOT EXISTS jobs_pending ON jobs(account_id,done,retry_at,received_at)');
   return Number(db.prepare("SELECT value FROM settings WHERE key='new_mail_since'").get().value);

@@ -1,9 +1,10 @@
 "use client";
 
-import type { ChangeEvent } from "react";
+import type { ChangeEvent, KeyboardEvent } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   HistoryIcon,
+  ExternalLinkIcon,
   Loader2,
   PaperclipIcon,
   PlusIcon,
@@ -42,6 +43,8 @@ import { RenameChatDialog } from "@/components/assistant-chat/RenameChatDialog";
 import { DeleteChatDialog } from "@/components/assistant-chat/DeleteChatDialog";
 import { randomUuid } from "@/utils/uuid";
 import { VoiceInput } from "@/components/voice/VoiceInput";
+import { ChatGPTConnection } from "./ChatGPTConnection";
+import { globalSlashCommands } from "@/utils/messages/commands";
 import { liveHistoryFromUiMessages } from "@/utils/voice/live-history";
 
 const MAX_FILE_SIZE = 4 * 1024 * 1024; // 4MB
@@ -75,10 +78,25 @@ export function Chat({
     setAttachments,
     submitTextMessage,
     stop,
+    sourceContext,
+    setSourceContext,
   } = useChat();
   const { messages, status, regenerate, setMessages } = chat;
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [accountSlot, setAccountSlot] = useState<HTMLDivElement | null>(null);
   const [uploadQueue, setUploadQueue] = useState<string[]>([]);
+  const [commandIndex, setCommandIndex] = useState(0);
+  const [commandsDismissed, setCommandsDismissed] = useState(false);
+  const commands =
+    !commandsDismissed && /^\/[^\s]*$/.test(input)
+      ? globalSlashCommands.filter((item) =>
+          item.command.startsWith(input.toLowerCase()),
+        )
+      : [];
+  const selectedCommand = Math.min(
+    commandIndex,
+    Math.max(0, commands.length - 1),
+  );
 
   useEffect(() => {
     if (open && !chatId && status === "ready" && messages.length === 0) {
@@ -90,8 +108,18 @@ export function Chat({
   // biome-ignore lint/correctness/useExhaustiveDependencies: Only run on mount
   useEffect(() => {
     const savedInput = readDraftInput();
-    if (savedInput) setInput(savedInput);
+    if (savedInput && !input) setInput(savedInput);
   }, []);
+  useEffect(() => {
+    if (sourceContext || input) return;
+    try {
+      const previous = sessionStorage.getItem("zenro:chat-preserved-draft");
+      if (previous) {
+        sessionStorage.removeItem("zenro:chat-preserved-draft");
+        setInput(previous);
+      }
+    } catch {}
+  }, [sourceContext, input, setInput]);
 
   // Persist without setting state: a state update here queued an extra render
   // per keystroke, and fast text entry tripped React's update-depth guard.
@@ -221,16 +249,115 @@ export function Chat({
         </div>
       )}
 
-      <PromptInputTextarea
-        data-testid="chat-input"
-        value={input}
-        placeholder="Ask me anything"
-        onChange={(e: ChangeEvent<HTMLTextAreaElement>) =>
-          setInput(e.currentTarget.value)
-        }
-        onPaste={handlePaste}
-        className="pr-48"
-      />
+      {sourceContext && (
+        <div className="flex items-center gap-2 px-3 pt-2 text-xs text-muted-foreground">
+          <span className="min-w-0 flex-1 truncate" title={sourceContext.field}>
+            From {sourceContext.tab}
+            {sourceContext.selection.title
+              ? ` · ${sourceContext.selection.title}`
+              : ""}{" "}
+            · {sourceContext.field}
+          </span>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              let previous = "";
+              try {
+                previous =
+                  sessionStorage.getItem("zenro:chat-preserved-draft") ?? "";
+                sessionStorage.removeItem("zenro:chat-preserved-draft");
+              } catch {}
+              setInput(previous);
+              setSourceContext(null);
+            }}
+          >
+            Cancel command
+          </Button>
+        </div>
+      )}
+      <div className="relative">
+        {commands.length > 0 && (
+          <div
+            role="listbox"
+            aria-label="Chat commands"
+            id="chat-command-menu"
+            className="absolute bottom-full left-2 right-2 z-40 mb-1 rounded-md border bg-popover p-1 shadow-lg"
+          >
+            {commands.map((item, index) => (
+              <button
+                key={item.command}
+                type="button"
+                role="option"
+                id={`chat-command-${index}`}
+                aria-selected={index === selectedCommand}
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => {
+                  setInput(item.command);
+                  setCommandsDismissed(true);
+                }}
+                className={`flex w-full gap-3 rounded px-3 py-2 text-left text-sm ${index === selectedCommand ? "bg-accent" : ""}`}
+              >
+                <span>{item.command}</span>
+                <span className="text-xs text-muted-foreground">
+                  {item.description}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+        <PromptInputTextarea
+          data-chat-composer
+          data-testid="chat-input"
+          value={input}
+          placeholder="Ask me anything"
+          onChange={(e: ChangeEvent<HTMLTextAreaElement>) => {
+            setInput(e.currentTarget.value);
+            setCommandsDismissed(false);
+            setCommandIndex(0);
+          }}
+          aria-controls={commands.length ? "chat-command-menu" : undefined}
+          aria-activedescendant={
+            commands.length ? `chat-command-${selectedCommand}` : undefined
+          }
+          onKeyDown={(event: KeyboardEvent<HTMLTextAreaElement>) => {
+            if (event.nativeEvent.isComposing) return;
+            if (commands.length) {
+              if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+                event.preventDefault();
+                event.stopPropagation();
+                setCommandIndex(
+                  (selectedCommand +
+                    (event.key === "ArrowDown" ? 1 : commands.length - 1)) %
+                    commands.length,
+                );
+                return;
+              }
+              if (event.key === "Escape") {
+                event.preventDefault();
+                setCommandsDismissed(true);
+                return;
+              }
+              if (
+                event.key === "Enter" &&
+                !event.shiftKey &&
+                input.toLowerCase() !== commands[selectedCommand].command
+              ) {
+                event.preventDefault();
+                setInput(commands[selectedCommand].command);
+                setCommandsDismissed(true);
+                return;
+              }
+            }
+            if (event.key === "Enter" && !event.shiftKey) {
+              event.preventDefault();
+              event.currentTarget.form?.requestSubmit();
+            }
+          }}
+          onPaste={handlePaste}
+          className="pr-3"
+        />
+      </div>
 
       <input
         ref={fileInputRef}
@@ -242,71 +369,75 @@ export function Chat({
         tabIndex={-1}
       />
 
-      <div className="absolute bottom-2 right-2 flex items-center gap-1">
-        <VoiceInput
-          liveEnabled
-          liveHistory={liveHistoryFromUiMessages(messages)}
-          onInsert={(text) => {
-            setInput(input.trim() ? `${input.trim()} ${text}` : text);
-          }}
-          onSend={(text) => {
-            analytics.captureAction("chat_message_submitted", {
-              has_text: true,
-              attachment_count: attachments.length,
-              has_context: Boolean(context),
-              message_count: messages.length,
-              via_voice: true,
-            });
-            submitTextMessage(text).catch(() => undefined);
-          }}
-        />
-        <Tooltip content="Attach images">
-          <Button
-            type="button"
-            variant="ghostMuted"
-            size="icon"
-            aria-label="Attach images"
-            className="size-9 rounded-full"
-            onClick={() => {
-              analytics.captureAction("chat_attach_button_clicked", {
-                attachment_count: attachments.length,
-              });
-              fileInputRef.current?.click();
+      <div className="flex flex-wrap items-end justify-between gap-2 px-2 pb-2">
+        <ChatGPTConnection accountSlot={accountSlot} />
+        <div className="ml-auto flex shrink-0 items-center gap-1">
+          <VoiceInput
+            liveEnabled
+            liveHistory={liveHistoryFromUiMessages(messages)}
+            onInsert={(text) => {
+              setInput(input.trim() ? `${input.trim()} ${text}` : text);
             }}
-            disabled={attachments.length >= MAX_FILES}
-          >
-            <PaperclipIcon className="size-4" />
-          </Button>
-        </Tooltip>
-
-        <PromptInputSubmit
-          status={
-            status === "streaming"
-              ? "streaming"
-              : status === "submitted"
-                ? "submitted"
-                : "ready"
-          }
-          disabled={
-            status === "ready" || status === "error" ? !hasContent : false
-          }
-          onClick={(e) => {
-            if (status === "streaming" || status === "submitted") {
-              analytics.captureAction("chat_generation_stopped", {
-                status,
+            onSend={(text) => {
+              analytics.captureAction("chat_message_submitted", {
+                has_text: true,
+                attachment_count: attachments.length,
+                has_context: Boolean(context),
+                message_count: messages.length,
+                via_voice: true,
               });
-              e.preventDefault();
-              stop();
-              setMessages((messages) => messages);
+              submitTextMessage(text).catch(() => undefined);
+            }}
+          />
+          <Tooltip content="Attach images">
+            <Button
+              type="button"
+              variant="ghostMuted"
+              size="icon"
+              aria-label="Attach images"
+              className="size-9 rounded-full"
+              onClick={() => {
+                analytics.captureAction("chat_attach_button_clicked", {
+                  attachment_count: attachments.length,
+                });
+                fileInputRef.current?.click();
+              }}
+              disabled={attachments.length >= MAX_FILES}
+            >
+              <PaperclipIcon className="size-4" />
+            </Button>
+          </Tooltip>
+
+          <PromptInputSubmit
+            status={
+              status === "streaming"
+                ? "streaming"
+                : status === "submitted"
+                  ? "submitted"
+                  : "ready"
             }
-          }}
-        />
+            disabled={
+              status === "ready" || status === "error" ? !hasContent : false
+            }
+            onClick={(e) => {
+              if (status === "streaming" || status === "submitted") {
+                analytics.captureAction("chat_generation_stopped", {
+                  status,
+                });
+                e.preventDefault();
+                stop();
+                setMessages((messages) => messages);
+              }
+            }}
+          />
+        </div>
       </div>
     </PromptInput>
   );
 
   return (
     <div
+      data-chat-workspace
       className="flex h-full min-w-0 flex-col"
       style={
         {
@@ -315,7 +446,11 @@ export function Chat({
         } as React.CSSProperties
       }
     >
-      <ChatTopBar hasMessages={hasMessages} onClose={onClose} />
+      <ChatTopBar
+        hasMessages={hasMessages}
+        onClose={onClose}
+        accountRef={setAccountSlot}
+      />
       {hasMessages ? (
         <ChatMessagesView
           status={status}
@@ -450,16 +585,34 @@ function NewChatView({
 function ChatTopBar({
   hasMessages,
   onClose,
+  accountRef,
 }: {
   hasMessages: boolean;
   onClose?: () => void;
+  accountRef: (node: HTMLDivElement | null) => void;
 }) {
   return (
-    <div className="relative mx-auto w-full max-w-[calc(var(--chat-max-w)+var(--chat-px)*2)] px-[var(--chat-px)] pt-2">
+    <div className="relative w-full px-[var(--chat-px)] pt-2">
       <div className="flex items-center justify-end gap-1">
+        <Button
+          asChild
+          variant="ghost"
+          size="sm"
+          className="h-8 gap-1.5 text-xs text-muted-foreground"
+        >
+          <a
+            href="https://chatgpt.com/"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Open in ChatGPT
+            <ExternalLinkIcon className="size-3" aria-hidden="true" />
+          </a>
+        </Button>
         {hasMessages ? <NewChatButton /> : null}
         <ChatHistoryDropdown />
         {onClose ? <CloseChatButton onClose={onClose} /> : null}
+        <div ref={accountRef} className="flex items-center" />
       </div>
     </div>
   );

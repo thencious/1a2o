@@ -48,6 +48,8 @@ next-env.d.ts
 .turbo
 dist
 .next
+.next-candidate/
+.next-releases/
 
 # tinybird
 .tinyb
@@ -121,3 +123,12 @@ eval-results/
 .tmp/
 
 /.private-build-install.json
+
+# Native Android build outputs and machine-local tools
+**/__pycache__/
+*.pyc
+apps/android/.gradle/
+apps/android/local.properties
+apps/android/**/build/
+*.jks
+*.keystore

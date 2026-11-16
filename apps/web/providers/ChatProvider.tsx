@@ -21,6 +21,7 @@ import { useChatMessages } from "@/hooks/useChatMessages";
 import { useAccount } from "@/providers/EmailAccountProvider";
 import { EMAIL_ACCOUNT_HEADER } from "@/utils/config";
 import type { MessageContext } from "@/utils/ai/assistant/chat-context-validation";
+import type { SlashContext } from "@/utils/messages/slash-context";
 import { InlineEmailActionProvider } from "@/components/assistant-chat/inline-email-action-context";
 import {
   mergeInlineEmailActions,
@@ -62,7 +63,9 @@ type ChatContextType = {
   setInput: (input: string) => void;
   setChatId: (chatId: string | null) => void;
   setNewChat: () => void;
-  submitTextMessage: (text: string) => Promise<void>;
+  submitTextMessage: (text: string, source?: SlashContext) => Promise<void>;
+  sourceContext: SlashContext | null;
+  setSourceContext: (source: SlashContext | null) => void;
   handleSubmit: () => void;
   stop: () => Promise<void>;
   context: MessageContext | null;
@@ -78,6 +81,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   const { mutate } = useSWRConfig();
 
   const [input, setInput] = useState<string>("");
+  const [sourceContext, setSourceContext] = useState<SlashContext | null>(null);
   const [chatId, setChatId] = useQueryState("chatId", parseAsString);
   const [context, setContext] = useState<MessageContext | null>(null);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
@@ -137,7 +141,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     // messages: initialMessages, // NOTE: couldn't get this to work
     experimental_throttle: 100,
     generateId: generateUUID,
-    onFinish: async ({ isAbort }) => {
+    onFinish: async ({ isAbort, message }) => {
       pendingInlineActionsRef.current = null;
       pendingRequestRef.current = null;
       pendingRequestContextRef.current = null;
@@ -147,6 +151,38 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         mutate("/api/user/rules"),
         chatId && !isAbort ? mutate(`/api/chats/${chatId}`) : Promise.resolve(),
       ]);
+      const appChanged = message?.parts.some(
+        (part) =>
+          part.type === "tool-runZenroTool" &&
+          part.state === "output-available" &&
+          part.output &&
+          typeof part.output === "object" &&
+          "changed" in part.output &&
+          part.output.changed,
+      );
+      if (appChanged) {
+        await mutate((key) => {
+          const path =
+            typeof key === "string" ? key : Array.isArray(key) ? key[0] : null;
+          return (
+            typeof path === "string" &&
+            [
+              "/api/user/messages",
+              "/api/user/calendar",
+              "/api/user/todo",
+              "/api/user/agents",
+              "/api/user/automation",
+              "/api/user/usage",
+            ].some((prefix) => path.startsWith(prefix))
+          );
+        });
+        if (typeof BroadcastChannel !== "undefined") {
+          const channel = new BroadcastChannel("zenro-note-task-transfer");
+          channel.postMessage({ workspace: "tasks" });
+          channel.postMessage({ workspace: "notes" });
+          channel.close();
+        }
+      }
     },
     onError: (error) => {
       if (resumingRef.current) {
@@ -302,12 +338,13 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     chat.setMessages([]);
     setInput("");
     setContext(null);
+    setSourceContext(null);
     setAttachments([]);
     setInlineActions([]);
   }, [chat.setMessages, emailAccountId, setChatId]);
 
   const sendMessageParts = useCallback(
-    (parts: ChatMessagePart[]) => {
+    (parts: ChatMessagePart[], source?: SlashContext) => {
       const textLength = getChatTextLength(parts);
       const attachmentCount = parts.filter(
         (part) => part.type === "file",
@@ -350,24 +387,40 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
 
       const sendPromise = chat.sendMessage(
         { role: "user", parts },
-        requestContext ? { body: { context: requestContext } } : undefined,
+        requestContext || source || sourceContext
+          ? {
+              body: {
+                context: requestContext ?? undefined,
+                sourceContext: source ?? sourceContext ?? undefined,
+              },
+            }
+          : undefined,
       );
       if (requestContext) {
         setContext((current) => (current === requestContext ? null : current));
       }
+      setSourceContext(null);
 
       return sendPromise;
     },
-    [chat.id, chat.sendMessage, chatId, context, emailAccountId, setChatId],
+    [
+      chat.id,
+      chat.sendMessage,
+      chatId,
+      context,
+      emailAccountId,
+      setChatId,
+      sourceContext,
+    ],
   );
 
   const submitTextMessage = useCallback(
-    async (text: string) => {
+    async (text: string, source?: SlashContext) => {
       const trimmedText = text.trim();
       if (!trimmedText) return;
 
-      await sendMessageParts([{ type: "text", text: trimmedText }]);
-      setInput("");
+      await sendMessageParts([{ type: "text", text: trimmedText }], source);
+      if (!source) setInput("");
     },
     [sendMessageParts],
   );
@@ -422,6 +475,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     const text = input.trim();
     if (!text && attachments.length === 0) return;
     const submittedInput = input;
+    const submittedSourceContext = sourceContext;
     const submittedAttachments = attachments;
 
     const fileParts = attachments.map((attachment) => ({
@@ -455,6 +509,8 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     setAttachments([]);
     setInput("");
     sendPromise.catch(() => {
+      if (submittedSourceContext)
+        setSourceContext((current) => current ?? submittedSourceContext);
       setInput((current) =>
         current ? `${submittedInput}\n\n${current}` : submittedInput,
       );
@@ -462,7 +518,15 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         mergeAttachments(submittedAttachments, current),
       );
     });
-  }, [attachments, chat.id, chatId, emailAccountId, input, sendMessageParts]);
+  }, [
+    attachments,
+    chat.id,
+    chatId,
+    emailAccountId,
+    input,
+    sendMessageParts,
+    sourceContext,
+  ]);
 
   return (
     <ChatContext.Provider
@@ -475,6 +539,8 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         setChatId,
         setNewChat,
         submitTextMessage,
+        sourceContext,
+        setSourceContext,
         handleSubmit,
         stop,
         context,

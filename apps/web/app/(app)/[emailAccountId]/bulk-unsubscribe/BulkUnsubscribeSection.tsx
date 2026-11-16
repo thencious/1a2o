@@ -2,15 +2,19 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import useSWR from "swr";
+import useSWR, { SWRConfig } from "swr";
+import { useAccounts } from "@/hooks/useAccounts";
+import { swrFetcher } from "@/providers/swr-fetcher";
+import { EmailAccountScopeProvider } from "@/providers/EmailAccountProvider";
+import { newsletterKey } from "./identity";
+import { loadInboxNewsletters } from "./unified";
+import { useInboxScan } from "./useInboxScan";
 import { subDays } from "date-fns/subDays";
 import { ChevronDown } from "lucide-react";
 import { usePostHog } from "posthog-js/react";
 import {
   ArchiveIcon,
   CheckIcon,
-  ChevronsDownIcon,
-  ChevronsUpIcon,
   HistoryIcon,
   InboxIcon,
   ListIcon,
@@ -41,7 +45,6 @@ import {
   isUnsubscribeSuggestion,
 } from "@/app/(app)/[emailAccountId]/bulk-unsubscribe/suggestions";
 import { getUserFacingUnsubscribeLink } from "@/utils/parse/unsubscribe";
-import { useStatLoader } from "@/providers/StatLoaderProvider";
 import { usePremiumModal } from "@/app/(app)/premium/PremiumModal";
 import { useLabels } from "@/hooks/useLabels";
 import {
@@ -119,9 +122,9 @@ const selectOptions = [
   { label: "Last month", value: "30" },
   { label: "Last 3 months", value: "90" },
   { label: "Last year", value: "365" },
-  { label: "All", value: "0" },
+  { label: "All time", value: "0" },
 ];
-const defaultSelected = selectOptions[2];
+const defaultSelected = selectOptions[4];
 
 export function BulkUnsubscribe() {
   const [dateDropdown, setDateDropdown] = useState<string>(
@@ -147,17 +150,16 @@ export function BulkUnsubscribe() {
     [now],
   );
 
-  const [dateRange, setDateRange] = useState<DateRange | undefined>({
-    from: subDays(now, Number.parseInt(defaultSelected.value)),
-    to: now,
-  });
-
-  const { isLoading: isStatsLoaderLoading, onLoad } = useStatLoader();
-  const refreshInterval = isStatsLoaderLoading ? 5000 : 1_000_000;
-  useEffect(() => {
-    onLoad({ loadBefore: false, showToast: false });
-  }, [onLoad]);
-
+  const [dateRange, setDateRange] = useState<DateRange | undefined>();
+  const [scope, setScope] = useState("all");
+  const { data: accountData } = useAccounts();
+  const inboxes = useMemo(
+    () =>
+      accountData?.emailAccounts.filter(
+        (account) => scope === "all" || account.id === scope,
+      ) ?? [],
+    [accountData, scope],
+  );
   const { emailAccountId, userEmail } = useAccount();
 
   const [sortColumn, setSortColumn] = useState<
@@ -185,31 +187,44 @@ export function BulkUnsubscribe() {
 
   const [search, setSearch] = useState("");
 
-  const [expanded, setExpanded] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(50);
 
   const params: NewsletterStatsQuery = {
     types: typesArray,
     filters: filtersArray,
     orderBy: sortColumn,
     orderDirection: sortDirection,
-    limit: expanded ? 500 : 50,
     includeMissingUnsubscribe: true,
     ...getDateRangeParams(dateRange),
     ...(search ? { search } : {}),
   };
   const urlParams = createSearchParams(params);
-  const { data, isLoading, isValidating, error, mutate } = useSWR<
-    NewsletterStatsResponse,
-    { error: string }
-  >(`/api/user/stats/newsletters?${urlParams}`, {
-    refreshInterval,
-    keepPreviousData: true,
-  });
+  const { data, isLoading, isValidating, error, mutate } = useSWR(
+    inboxes.length
+      ? [
+          "bulk-newsletters",
+          inboxes.map((account) => account.id).join(","),
+          urlParams.toString(),
+        ]
+      : null,
+    () =>
+      loadInboxNewsletters(inboxes, (id) =>
+        swrFetcher(`/api/user/stats/newsletters?${urlParams}`, undefined, id),
+      ),
+    { refreshInterval: 60_000, keepPreviousData: false },
+  );
+  const {
+    loading: isStatsLoading,
+    scan,
+    errors: scanErrors,
+    loaded: scannedMessages,
+  } = useInboxScan(inboxes, () => mutate());
+  const refreshInterval = isStatsLoading ? 5000 : 60_000;
 
   // Track whether we're switching views (filter, sort, search, date range, expanded)
   // Show skeleton when validating with different params, not on background refresh
   const [lastFetchedParams, setLastFetchedParams] = useState<string>("");
-  const currentParamsString = urlParams.toString();
+  const currentParamsString = `${scope}:${urlParams}`;
   const isParamsChanged = lastFetchedParams !== currentParamsString;
   const showSkeleton = isValidating && isParamsChanged;
 
@@ -223,12 +238,11 @@ export function BulkUnsubscribe() {
   const { hasUnsubscribeAccess, mutate: refetchPremium } = usePremium();
 
   const [includeWithoutUnsubscribeLink, setIncludeWithoutUnsubscribeLink] =
-    useState(false);
+    useState(true);
   const [archiveOnUnsubscribe, setArchiveOnUnsubscribe] =
     useArchiveOnUnsubscribe();
 
-  // Data is filtered, sorted, and limited by the backend. Senders that can
-  // only be blocked are hidden from review unless asked for.
+  // Keep mailbox identities separate even when the sender address is shared.
   const rows = useMemo(
     () =>
       filter === "unhandled" && !includeWithoutUnsubscribeLink
@@ -245,32 +259,15 @@ export function BulkUnsubscribe() {
   // once the sender leaves the current view.
   const [openedNewsletterName, setOpenedNewsletterName] = useState<string>();
   const openedNewsletter = rows?.find(
-    (row) => row.name === openedNewsletterName,
+    (row) => newsletterKey(row) === openedNewsletterName,
   );
 
   const onOpenNewsletter = (newsletter: Newsletter) => {
-    setOpenedNewsletterName(newsletter.name);
+    setOpenedNewsletterName(newsletterKey(newsletter));
     posthog?.capture("Clicked Expand Sender");
   };
 
   const [selectedRow, setSelectedRow] = useState<Newsletter | undefined>();
-
-  useBulkUnsubscribeShortcuts({
-    newsletters: rows,
-    // The panel has its own email shortcuts; row keys must not act behind it.
-    selectedRow: openedNewsletter ? undefined : selectedRow,
-    onOpenNewsletter,
-    setSelectedRow,
-    refetchPremium,
-    hasUnsubscribeAccess,
-    mutate,
-    userEmail,
-    emailAccountId,
-  });
-
-  const { isLoading: isStatsLoading } = useStatLoader();
-
-  const { userLabels } = useLabels();
 
   const { PremiumModal, openModal } = usePremiumModal();
 
@@ -283,29 +280,55 @@ export function BulkUnsubscribe() {
     selectItems,
     clearSelection,
     deselectItem,
-  } = useToggleSelect(rows?.map((item) => ({ id: item.name })) || []);
+  } = useToggleSelect(rows?.map((item) => ({ id: newsletterKey(item) })) || []);
 
   const suggestedRows = useMemo(
     () => rows?.filter(isUnsubscribeSuggestion) ?? [],
     [rows],
   );
 
-  const visibleRows = useMemo(
-    () =>
-      isSuggestedMode
-        ? getSuggestedModeRows(rows ?? [], selected)
-        : (rows ?? []),
-    [isSuggestedMode, rows, selected],
-  );
+  const visibleRows = useMemo(() => {
+    const items = isSuggestedMode
+      ? getSuggestedModeRows(rows ?? [], selected)
+      : [...(rows ?? [])];
+    const value = (row: Newsletter) =>
+      sortColumn === "emails"
+        ? row.value
+        : sortColumn === "unread"
+          ? row.readEmails / Math.max(row.value, 1)
+          : (row.value - row.inboxEmails) / Math.max(row.value, 1);
+    return items.sort(
+      (a, b) =>
+        (value(a) - value(b)) * (sortDirection === "asc" ? 1 : -1) ||
+        newsletterKey(a).localeCompare(newsletterKey(b)),
+    );
+  }, [isSuggestedMode, rows, selected, sortColumn, sortDirection]);
+  useBulkUnsubscribeShortcuts({
+    newsletters: visibleRows,
+    // The panel has its own email shortcuts; row keys must not act behind it.
+    selectedRow: openedNewsletter
+      ? undefined
+      : visibleRows.find(
+          (row) =>
+            selectedRow && newsletterKey(row) === newsletterKey(selectedRow),
+        ),
+    onOpenNewsletter,
+    setSelectedRow,
+    refetchPremium,
+    hasUnsubscribeAccess,
+    mutate,
+    userEmail,
+    emailAccountId: selectedRow?.emailAccountId ?? emailAccountId,
+  });
   const visibleRowIds = useMemo(
-    () => visibleRows.map((row) => row.name),
+    () => visibleRows.map((row) => newsletterKey(row)),
     [visibleRows],
   );
   const isAllVisibleSelected =
     visibleRows.length > 0 &&
-    visibleRows.every((row) => selected.get(row.name));
+    visibleRows.every((row) => selected.get(newsletterKey(row)));
   const isSomeVisibleSelected = visibleRows.some((row) =>
-    selected.get(row.name),
+    selected.get(newsletterKey(row)),
   );
 
   const onToggleSuggestedMode = useCallback(() => {
@@ -314,7 +337,7 @@ export function BulkUnsubscribe() {
       return;
     }
 
-    selectItems(suggestedRows.map((row) => row.name));
+    selectItems(suggestedRows.map((row) => newsletterKey(row)));
     setIsSuggestedMode(true);
     posthog?.capture("Clicked Select Suggested Unsubscribes", {
       count: suggestedRows.length,
@@ -337,7 +360,7 @@ export function BulkUnsubscribe() {
   useEffect(() => {
     clearSelection();
     setIsSuggestedMode(false);
-  }, [filter]);
+  }, [filter, scope]);
 
   // Deep link (e.g. from the inbox health email or onboarding):
   // ?select=suggested auto-selects the suggested rows once after the first
@@ -354,7 +377,9 @@ export function BulkUnsubscribe() {
     if (!rows) return;
 
     hasAppliedSelectParamRef.current = true;
-    selectItems(rows.filter(isUnsubscribeSuggestion).map((row) => row.name));
+    selectItems(
+      rows.filter(isUnsubscribeSuggestion).map((row) => newsletterKey(row)),
+    );
     setIsSuggestedMode(true);
 
     const nextParams = new URLSearchParams(searchParams);
@@ -364,26 +389,27 @@ export function BulkUnsubscribe() {
     });
   }, [searchParams, rows, selectItems, router, pathname]);
 
-  // Backend now handles sorting, so we just map the rows in order
-  const tableRows = visibleRows.map((item) => {
+  const tableRows = visibleRows.slice(0, visibleCount).map((item) => {
     const readPercentage =
       item.value > 0 ? (item.readEmails / item.value) * 100 : 0;
 
     return (
-      <BulkUnsubscribeRowDesktop
-        key={item.name}
+      <ScopedNewsletterRow
+        key={newsletterKey(item)}
         item={item}
-        userEmail={userEmail}
-        emailAccountId={emailAccountId}
+        userEmail={item.userEmail ?? userEmail}
+        emailAccountId={item.emailAccountId ?? emailAccountId}
         onOpenNewsletter={onOpenNewsletter}
-        labels={userLabels}
+        labels={[]}
         mutate={mutate}
-        selected={selectedRow?.name === item.name}
+        selected={Boolean(
+          selectedRow && newsletterKey(selectedRow) === newsletterKey(item),
+        )}
         onSelectRow={() => setSelectedRow(item)}
         hasUnsubscribeAccess={hasUnsubscribeAccess}
         refetchPremium={refetchPremium}
         openPremiumModal={openModal}
-        checked={selected.get(item.name) || false}
+        checked={selected.get(newsletterKey(item)) || false}
         onToggleSelect={onToggleVisibleRow}
         readPercentage={readPercentage}
         filter={filter}
@@ -417,7 +443,10 @@ export function BulkUnsubscribe() {
             muxPlaybackId: "qxP8P5aKm7k7I01seCEMP1ZepHQAmdKCcW02x1fM7xQm00",
           }}
         />
-        <ScanOlderEmailsButton />
+        <ScanOlderEmailsButton
+          isLoading={isStatsLoading}
+          onScan={() => scan(true)}
+        />
       </div>
 
       <DismissibleVideoCard
@@ -435,6 +464,48 @@ export function BulkUnsubscribe() {
         }}
       />
 
+      <div className="flex items-center gap-3 mt-3">
+        <select
+          aria-label="Inboxes"
+          value={scope}
+          onChange={(event) => {
+            setScope(event.target.value);
+            setVisibleCount(50);
+            clearSelection();
+            setOpenedNewsletterName(undefined);
+          }}
+          className="h-9 max-w-full rounded-md border bg-background px-3 text-sm"
+        >
+          <option value="all">All inboxes</option>
+          {accountData?.emailAccounts.map((account) => (
+            <option key={account.id} value={account.id}>
+              {account.email}
+            </option>
+          ))}
+        </select>
+        <span className="text-xs text-muted-foreground">
+          {isStatsLoading
+            ? `Scanning emails... ${scannedMessages.toLocaleString()} indexed`
+            : data
+              ? `${data.newsletters.length.toLocaleString()} senders`
+              : "Loading senders..."}
+        </span>
+      </div>
+      {!!data?.accountErrors.length && (
+        <p role="alert" className="mt-2 text-sm text-destructive">
+          Could not load{" "}
+          {data.accountErrors.map((account) => account.email).join(", ")}.{" "}
+          <button type="button" className="underline" onClick={() => mutate()}>
+            Retry
+          </button>
+        </p>
+      )}
+      {!!scanErrors.length && (
+        <p role="alert" className="mt-2 text-sm text-muted-foreground">
+          Email scan incomplete for {scanErrors.join(", ")}. Scan older emails
+          to continue.
+        </p>
+      )}
       <div className="mt-4 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:gap-3">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -580,27 +651,15 @@ export function BulkUnsubscribe() {
                 onIncludeLinkless={() => setIncludeWithoutUnsubscribeLink(true)}
               />
             )}
-            {/* Only show expand/collapse when there might be more results */}
-            {(expanded ||
-              (data?.newsletters && data.newsletters.length >= 50)) && (
-              <div className="mt-2 px-6 pb-6">
+            {visibleRows.length > visibleCount && (
+              <div className="px-6 py-4">
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setExpanded(!expanded)}
                   className="w-full"
+                  onClick={() => setVisibleCount((count) => count + 100)}
                 >
-                  {expanded ? (
-                    <>
-                      <ChevronsUpIcon className="h-4 w-4" />
-                      <span className="ml-2">Show less</span>
-                    </>
-                  ) : (
-                    <>
-                      <ChevronsDownIcon className="h-4 w-4" />
-                      <span className="ml-2">Show more</span>
-                    </>
-                  )}
+                  Show more ({visibleRows.length - visibleCount} remaining)
                 </Button>
               </div>
             )}
@@ -616,46 +675,83 @@ export function BulkUnsubscribe() {
         filter={filter}
         dateRange={dateRange}
       />
-      <SenderPanel
-        newsletter={openedNewsletter}
-        onClose={() => setOpenedNewsletterName(undefined)}
-        refreshInterval={refreshInterval}
-        mutate={mutate}
-        hasUnsubscribeAccess={hasUnsubscribeAccess}
-        refetchPremium={refetchPremium}
-        openPremiumModal={openModal}
-        filter={filter}
-      />
+      <NewsletterPanelScope accountId={openedNewsletter?.emailAccountId}>
+        <SenderPanel
+          newsletter={openedNewsletter}
+          onClose={() => setOpenedNewsletterName(undefined)}
+          refreshInterval={refreshInterval}
+          mutate={mutate}
+          hasUnsubscribeAccess={hasUnsubscribeAccess}
+          refetchPremium={refetchPremium}
+          openPremiumModal={openModal}
+          filter={filter}
+        />
+      </NewsletterPanelScope>
       <PremiumModal />
     </PageWrapper>
   );
 }
 
-function ScanOlderEmailsButton() {
-  const { isLoading, onLoadBatch } = useStatLoader();
-
+function ScopedNewsletterRow(
+  props: React.ComponentProps<typeof BulkUnsubscribeRowDesktop>,
+) {
+  const { userLabels } = useLabels(props.emailAccountId);
+  return <BulkUnsubscribeRowDesktop {...props} labels={userLabels} />;
+}
+function NewsletterPanelScope({
+  accountId,
+  children,
+}: {
+  accountId?: string;
+  children: React.ReactNode;
+}) {
+  const { data } = useAccounts();
+  const account = data?.emailAccounts.find(
+    (account) => account.id === accountId,
+  );
+  // biome-ignore lint/correctness/useExhaustiveDependencies: keep each mailbox in a separate SWR cache
+  const cache = useMemo(() => new Map(), [accountId]);
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Button
-          variant="outline"
-          size="icon"
-          className="shrink-0"
-          onClick={() => onLoadBatch({ loadBefore: true, showToast: true })}
-          disabled={isLoading}
-          aria-label="Scan older emails"
-        >
-          {isLoading ? (
-            <Loader2Icon className="size-4 animate-spin" />
-          ) : (
-            <HistoryIcon className="size-4" />
-          )}
-        </Button>
-      </TooltipTrigger>
-      <TooltipContent>
-        {isLoading ? "Scanning older emails…" : "Scan older emails"}
-      </TooltipContent>
-    </Tooltip>
+    <EmailAccountScopeProvider emailAccount={account}>
+      <SWRConfig
+        key={accountId ?? "closed"}
+        value={{
+          provider: () => cache,
+          fetcher: (key: string | [string, string]) =>
+            Array.isArray(key)
+              ? swrFetcher(key[0], undefined, key[1])
+              : swrFetcher(key, undefined, accountId),
+        }}
+      >
+        {children}
+      </SWRConfig>
+    </EmailAccountScopeProvider>
+  );
+}
+function ScanOlderEmailsButton({
+  isLoading,
+  onScan,
+}: {
+  isLoading: boolean;
+  onScan: () => void;
+}) {
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      disabled={isLoading}
+      onClick={onScan}
+      aria-label="Scan older emails"
+    >
+      {isLoading ? (
+        <Loader2Icon className="size-4 animate-spin" />
+      ) : (
+        <HistoryIcon className="size-4" />
+      )}
+      <span className="ml-2">
+        {isLoading ? "Scanning emails..." : "Scan older emails"}
+      </span>
+    </Button>
   );
 }
 

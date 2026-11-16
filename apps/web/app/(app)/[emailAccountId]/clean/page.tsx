@@ -1,3 +1,4 @@
+import { retainWorkspacePage } from "@/components/retain-workspace-page";
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { getLastJob } from "@/app/(app)/[emailAccountId]/clean/helpers";
@@ -7,7 +8,7 @@ import { Loading } from "@/components/Loading";
 import { prefixPath } from "@/utils/path";
 import { checkUserOwnsEmailAccount } from "@/utils/email-account";
 
-export default async function CleanPage({
+async function CleanPage({
   params,
 }: {
   params: Promise<{ emailAccountId: string }>;
@@ -39,3 +40,5 @@ export default async function CleanPage({
     </Card>
   );
 }
+
+export default retainWorkspacePage(CleanPage);

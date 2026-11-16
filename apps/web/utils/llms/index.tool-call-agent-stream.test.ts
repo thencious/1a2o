@@ -31,6 +31,33 @@ describe("toolCallAgentStream abort", () => {
     vi.clearAllMocks();
   });
 
+  it("keeps existing tools when a signed-in ChatGPT model overrides OpenRouter", async () => {
+    const archive = vi.fn(async () => "archived");
+    const result = await toolCallAgentStream({
+      userAi: { aiProvider: null, aiModel: null, aiApiKey: null },
+      userEmail: "user@test.com",
+      emailAccountId: "account",
+      useCase: LlmUseCase.AssistantChat,
+      usageLabel: "test",
+      promptHardening: { trust: "untrusted", level: "full" },
+      messages: [{ role: "user", content: "Archive my selected mail" }],
+      modelOverride: {
+        provider: "chatgpt",
+        modelName: "account-model",
+        model: createToolCallingModel(),
+        fallbackModels: [],
+        hasUserApiKey: true,
+      },
+      tools: { archive: tool({ inputSchema: z.object({}), execute: archive }) },
+      maxSteps: 1,
+    });
+    for await (const _chunk of result.toUIMessageStream()) {
+      /* consume the model and tool results */
+    }
+    expect(archive).toHaveBeenCalledTimes(2);
+    expect(mockGetModelForUseCase).not.toHaveBeenCalled();
+  });
+
   it("does not start further tool calls once the run is stopped", async () => {
     const controller = new AbortController();
     // The stop lands while the first tool call is running.

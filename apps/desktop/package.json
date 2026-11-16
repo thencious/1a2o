@@ -1,9 +1,9 @@
 {
   "name": "@inboxzero/desktop",
-  "productName": "Inbox Zero",
+  "productName": "1a2o",
   "private": true,
   "version": "0.1.0",
-  "description": "Electron shell for the Inbox Zero web app",
+  "description": "Electron shell for the 1a2o web app",
   "author": "Inbox Zero",
   "type": "module",
   "main": "dist/main.js",

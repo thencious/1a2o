@@ -7,16 +7,26 @@ import { pipeline } from "node:stream/promises";
 import { pathToFileURL } from "node:url";
 import { setTimeout as delay } from "node:timers/promises";
 import { createQuota } from "./quota.mjs";
+import { createUsage } from "./usage.mjs";
+import { createRouteHealth, prepareRequest, requestRoute, failureDetails } from "./request-policy.mjs";
 
-export function createGateway({ apiKey, quota, fetchImpl = fetch, freeOnly = true, waitForMinute = false, waitImpl = delay }) {
+export function createGateway({ apiKey, quota, usage, routeHealth, fetchImpl = fetch, freeOnly = true, waitForMinute = false, waitImpl = delay }) {
   if (!apiKey) throw new Error("OPENROUTER_API_KEY is required");
   return createServer(async (request, response) => {
     if (request.method === "GET" && request.url === "/health") {
-      reply(response, 200, { ok: true, ...quota.status(), freeOnly });
+      reply(response, 200, { ok: true, ...quota.status(), freeOnly, pausedRoutes: routeHealth?.pauses() ?? [] });
       return;
     }
     if (request.headers.authorization !== `Bearer ${apiKey}`) {
       reply(response, 401, { error: { code: 401, message: "Invalid gateway credential" } });
+      return;
+    }
+    if (request.method === "GET" && request.url.startsWith("/usage?")) {
+      try {
+        const day = new URL(request.url, "http://localhost").searchParams.get("day");
+        if (!usage) return reply(response, 503, {error:"Usage tracking unavailable"});
+        reply(response, 200, {...usage.report(day),limits:quota.status()});
+      } catch { reply(response, 400, {error:"Choose a valid UTC date"}); }
       return;
     }
     if (request.method !== "POST" || request.url !== "/api/v1/chat/completions") {
@@ -47,6 +57,22 @@ export function createGateway({ apiKey, quota, fetchImpl = fetch, freeOnly = tru
         return;
       }
       const workload = request.headers["x-inbox-zero-workload"] === "backfill" ? "backfill" : "priority";
+      const featureHeader = request.headers["x-inbox-zero-feature"];
+      const feature = workload === "backfill" ? "Old email tagging" :
+        typeof featureHeader === "string" && /^[\x20-\x7e]{1,160}$/.test(featureHeader) ? featureHeader : "Unattributed app request";
+      const itemHeader = Number(request.headers["x-inbox-zero-items"]);
+      const items = Number.isSafeInteger(itemHeader) && itemHeader>0 && itemHeader<=1000 ? itemHeader : null;
+      const requestedModel = String(body.model ?? models[0]).slice(0,160);
+      body = prepareRequest(body, freeOnly);
+      const route = requestRoute(body, feature);
+      const paused = routeHealth?.paused(route.key);
+      if (paused) {
+        const retryAfter = Math.max(1, Math.ceil((paused.until-Date.now())/1000));
+        usage?.start({feature,model:route.model,requestedModel,items,counted:false,outcome:"blocked",status:409});
+        response.setHeader("Retry-After",retryAfter);
+        reply(response,409,{error:{code:"model_route_paused",message:`This AI request format is paused after repeated provider failures. Retry after ${new Date(paused.until).toISOString()}.`}});
+        return;
+      }
       let reservation = quota.reserve(undefined,workload);
       const queuedAt = Date.now();
       while (waitForMinute && !reservation.allowed && reservation.reason === "minute" && !response.destroyed && Date.now()-queuedAt < 120_000) {
@@ -55,12 +81,15 @@ export function createGateway({ apiKey, quota, fetchImpl = fetch, freeOnly = tru
         reservation = quota.reserve(undefined,workload);
       }
       if (!reservation.allowed) {
+        usage?.start({feature,model:route.model,requestedModel,items,counted:false,outcome:"blocked",status:reservation.reason === "minute" ? 429 : 403});
         const daily = reservation.reason === "daily" || reservation.reason === "backfill";
         const code = daily ? 403 : 429;
         response.setHeader("Retry-After", reservation.retryAfter);
         reply(response, code, { error: { code, message: reservation.reason === "backfill" ? `Backlog allowance exhausted; ${reservation.newMailReserve} daily requests are protected for new mail. Resets at 00:00 UTC.` : daily ? `OpenRouter daily limit (${reservation.perDay} requests) reached. Resets at 00:00 UTC.` : `OpenRouter minute limit (${reservation.perMinute} requests) reached. Try again in ${reservation.retryAfter} seconds.` } });
         return;
       }
+      const started = Date.now();
+      const eventId = usage?.start({feature,model:route.model,requestedModel,items,counted:true});
       const abort = new AbortController();
       const timer = setTimeout(() => abort.abort(), 180_000);
       response.once("close", () => abort.abort());
@@ -71,14 +100,36 @@ export function createGateway({ apiKey, quota, fetchImpl = fetch, freeOnly = tru
           body: JSON.stringify(body),
           signal: abort.signal,
         });
-        response.statusCode = upstream.status;
+        let status = upstream.status;
+        let text, details;
+        if (!body.stream || !upstream.ok) {
+          text = await upstream.text();
+          let data;
+          try { data = JSON.parse(text); } catch { if(upstream.ok) {status=502;details={category:"invalid_response",provider:null};} }
+          const embeddedError = data?.error ?? data?.choices?.find(choice=>choice.error)?.error;
+          if (embeddedError && upstream.ok) {
+            const code = Number(embeddedError.code);
+            status = code>=400 && code<=599 ? code : 502;
+          }
+          if (status>=400 && !details) details=failureDetails(status,embeddedError?{error:embeddedError}:data);
+        }
+        response.statusCode = status;
         for (const name of ["content-type", "retry-after"]) {
           const value = upstream.headers.get(name);
           if (value) response.setHeader(name, value);
         }
         response.setHeader("Cache-Control", "no-store");
-        if (upstream.body) await pipeline(Readable.fromWeb(upstream.body), response);
+        if (text !== undefined) response.end(text);
+        else if (upstream.body) await pipeline(Readable.fromWeb(upstream.body), response);
         else response.end();
+        if (status>=400) routeHealth?.failed(route,status,details ?? failureDetails(status));
+        else routeHealth?.succeeded(route.key);
+        if (eventId) usage.finish(eventId,status<400 ? "succeeded" : "failed",status,Date.now()-started,details);
+      } catch (error) {
+        const details = {category: response.destroyed ? response.headersSent ? "stream_interrupted" : "client_disconnected" : abort.signal.aborted ? "timeout" : "network_error",provider:null};
+        if (!["client_disconnected","stream_interrupted"].includes(details.category)) routeHealth?.failed(route,null,details);
+        if (eventId) usage.finish(eventId,"failed",null,Date.now()-started,details);
+        throw error;
       } finally {
         clearTimeout(timer);
       }
@@ -104,7 +155,7 @@ async function main() {
   const quota = createQuota(dbPath, {
     perMinute: Number(process.env.OPENROUTER_REQUESTS_PER_MINUTE ?? 20),
     perDay: Number(process.env.OPENROUTER_REQUESTS_PER_DAY ?? 50),
-    newMailReserve: Math.min(100,Number(process.env.OPENROUTER_REQUESTS_PER_DAY ?? 50)),
+    newMailReserve: Math.min(Number(process.env.OPENROUTER_NEW_MAIL_RESERVE ?? 100),Number(process.env.OPENROUTER_REQUESTS_PER_DAY ?? 50)),
   });
   async function syncUsage() {
    try {
@@ -119,7 +170,9 @@ async function main() {
   await syncUsage();
   const syncTimer = setInterval(syncUsage, 60_000);
   syncTimer.unref();
-  const server = createGateway({ apiKey, quota, freeOnly: process.env.OPENROUTER_FREE_ONLY !== "false", waitForMinute: true });
+  const usage = createUsage(dbPath);
+  const routeHealth = createRouteHealth(dbPath);
+  const server = createGateway({ apiKey, quota, usage, routeHealth, freeOnly: process.env.OPENROUTER_FREE_ONLY !== "false", waitForMinute: true });
   server.requestTimeout = 30_000;
   server.listen(3010, "127.0.0.1", () => console.log(`[OpenRouter] Quota gateway ready at http://127.0.0.1:3010 (${quota.status().perMinute}/batch, ${quota.status().perDay}/UTC day)`));
   server.on("error", () => { console.error("[OpenRouter] Gateway could not start; check port 3010."); process.exitCode = 1; quota.close(); });

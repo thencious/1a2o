@@ -1,4 +1,5 @@
 "use client";
+import { retainWorkspacePage } from "@/components/retain-workspace-page";
 
 import Link from "next/link";
 import { ListChecksIcon, PenLineIcon, ZapIcon } from "lucide-react";
@@ -27,7 +28,7 @@ import {
   useIntegrationsEnabled,
 } from "@/hooks/useFeatureFlags";
 
-export default function IntegrationsPage() {
+function IntegrationsPage() {
   const integrationsEnabled = useIntegrationsEnabled();
   const { tier, isLoading: isPremiumLoading } = usePremium();
 
@@ -130,3 +131,5 @@ function Capabilities() {
     </ItemCard>
   );
 }
+
+export default retainWorkspacePage(IntegrationsPage);

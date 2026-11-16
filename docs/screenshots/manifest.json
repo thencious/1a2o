@@ -1,0 +1,97 @@
+{
+  "schemaVersion": 1,
+  "method": "Current app components in an isolated browser harness; fake providers; external origins blocked.",
+  "realProviderOperations": false,
+  "syntheticTerminalOutput": true,
+  "syntheticPairingLink": true,
+  "captures": [
+    {
+      "file": "agents.png",
+      "sha256": "aca147bc0d5ccff1618f16938c91a0b58093a58359e0d64819eb07a20af5efab",
+      "data": "fictional-fixture"
+    },
+    {
+      "file": "android-pairing.png",
+      "sha256": "a5a66650c5b994ef5746e486d90594f233d3fbee27c0a2c9d252b5c0fa37c462",
+      "data": "fictional-fixture"
+    },
+    {
+      "file": "bulk-unsubscribe.png",
+      "sha256": "55deb967b7d116cc03f4dd6b6258d1ee6f2cfd7eb2bc2ac7e4d3f1cc257b6bde",
+      "data": "fictional-fixture"
+    },
+    {
+      "file": "calendar-day.png",
+      "sha256": "0b06648a78a22f5cf4dd6c31f1e790ec01ce66d00f53ca37b90696e59556771f",
+      "data": "fictional-fixture"
+    },
+    {
+      "file": "calendar.png",
+      "sha256": "47c1f947c495285b81c3e8c9332e408c0873eb029082b2081da154c22e512b10",
+      "data": "fictional-fixture"
+    },
+    {
+      "file": "chat.png",
+      "sha256": "c9dede66365a249cd7485daac175c99569922a673f195132679a3468572df232",
+      "data": "fictional-fixture"
+    },
+    {
+      "file": "cloud-sync.png",
+      "sha256": "215be7595e31138d23520bdf5b0f972443915014bb05eb48fb8ce0e9c3aac728",
+      "data": "fictional-fixture"
+    },
+    {
+      "file": "contacts.png",
+      "sha256": "1dc446e8585f81c0adca5838f90f1bdcfcf62f8e5924d63f365a569e3f456382",
+      "data": "fictional-fixture"
+    },
+    {
+      "file": "mail.png",
+      "sha256": "37f6888d7f8ddd0fc7c47917d35d6e6da95ea1a72f04889b9364fa2fbc7df30b",
+      "data": "fictional-fixture"
+    },
+    {
+      "file": "messages-mobile.png",
+      "sha256": "75016a5d49ff72bb0f5be7ac6fe99ee6ec35d3555490f2787ab89a1210512473",
+      "data": "fictional-fixture",
+      "device": "responsive browser viewport; not Android emulator"
+    },
+    {
+      "file": "messages.png",
+      "sha256": "7473723dcf001238a73bba0307a058657a5902a70f28d5ed12656f08b5226cfc",
+      "data": "fictional-fixture"
+    },
+    {
+      "file": "notes-mobile.png",
+      "sha256": "996a3063a865637994c879b8cb20e26109bf206b9727c405fa14ab0ee7e4e2cc",
+      "data": "fictional-fixture",
+      "device": "responsive browser viewport; not Android emulator"
+    },
+    {
+      "file": "notes.png",
+      "sha256": "4864d6d11027950f6c58d49fd7a7627b1d06f4e3760fc9b7453de2e32d1e92e8",
+      "data": "fictional-fixture"
+    },
+    {
+      "file": "rules.png",
+      "sha256": "4f5e564dd99f40189cc77149aaac2b7972c7d0316572bc5c09ea226053ae36c0",
+      "data": "fictional-fixture"
+    },
+    {
+      "file": "tasks-mobile.png",
+      "sha256": "2b81f2374357dc8cce4a449672c3ccf3332bc370899707add4d2b8e827b8c819",
+      "data": "fictional-fixture",
+      "device": "responsive browser viewport; not Android emulator"
+    },
+    {
+      "file": "tasks.png",
+      "sha256": "25215c8d8438d07fd718f5c06b47c288177581d2f6a44e3f4aacd47b1b12587e",
+      "data": "fictional-fixture"
+    },
+    {
+      "file": "usage.png",
+      "sha256": "3158acdb1e2bb81d7858f0ec1d977bab6c0e2202804c616eb085695d58030541",
+      "data": "fictional-fixture"
+    }
+  ]
+}

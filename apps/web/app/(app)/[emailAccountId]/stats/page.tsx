@@ -1,7 +1,8 @@
+import { retainWorkspacePage } from "@/components/retain-workspace-page";
 import { PermissionsCheck } from "@/app/(app)/[emailAccountId]/PermissionsCheck";
 import { Stats } from "./Stats";
 
-export default async function StatsPage() {
+async function StatsPage() {
   return (
     <>
       <PermissionsCheck />
@@ -9,3 +10,5 @@ export default async function StatsPage() {
     </>
   );
 }
+
+export default retainWorkspacePage(StatsPage);

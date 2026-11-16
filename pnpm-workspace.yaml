@@ -67,6 +67,7 @@ allowBuilds:
   electron-winstaller: true
   esbuild: true
   msgpackr-extract: true
+  node-pty: true
   prisma: true
   protobufjs: true
   sharp: true

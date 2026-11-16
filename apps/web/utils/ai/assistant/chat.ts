@@ -50,10 +50,12 @@ import { getAssistantChatProvider } from "./chat-provider-shared";
 import { LlmUseCase } from "@/utils/llms/use-cases";
 import { isIntegrationActionEnabledForUserId } from "@/utils/integration-action.server";
 import { trimStaleToolResults } from "@/utils/ai/assistant/trim-stale-tool-results";
+import { chatGPTModel } from "@/utils/chatgpt/service";
+import { zenroTools } from "./zenro-tools";
 
 export const maxDuration = 800;
 // Increment when chat prompts, tools, or routing change so run quality remains attributable.
-export const ASSISTANT_CHAT_PIPELINE_VERSION = 14;
+export const ASSISTANT_CHAT_PIPELINE_VERSION = 16;
 const ASSISTANT_CHAT_TOOL_BUDGET_MS = {
   web: 720_000,
   messaging: 60_000,
@@ -282,6 +284,7 @@ export async function aiProcessAssistantChat({
   );
 
   const allTools = {
+    ...zenroTools(user.userId, logger),
     getAssistantCapabilities: getAssistantCapabilitiesTool(toolOptions),
     getAccountOverview: getAccountOverviewTool(toolOptions),
     getSenderCategoryOverview: getSenderCategoryOverviewTool(toolOptions),
@@ -339,6 +342,8 @@ export async function aiProcessAssistantChat({
   });
 
   const result = toolCallAgentStream({
+    modelOverride:
+      responseSurface === "web" ? await chatGPTModel(user.userId) : undefined,
     userAi: user.user,
     userId: user.userId,
     emailAccountId,
@@ -731,7 +736,7 @@ export function buildResolvedSystemPrompt({
 }) {
   const providerPolicy = getAssistantChatProvider(provider);
   const sections = [
-    "You are the Inbox Zero assistant. You help users understand their inbox, take inbox actions, update account features, and manage automation rules.",
+    "You are the 1a2o assistant. You help users across mail, messages, contacts, calendars, tasks, notes, agents, settings, automation rules and usage. Use discoverZenroTools and runZenroTool for app capabilities beyond the native mailbox tools. Notes use workspace actions with workspace=notes. Existing data access and write-authority rules apply to every app area.",
     `Core responsibilities:
 1. Search and summarize inbox activity, especially what is new and what needs attention
 2. Take inbox actions such as archive, trash/delete, mark read, bulk archive by sender, and sender unsubscribe

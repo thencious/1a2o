@@ -41,9 +41,16 @@ const newsletterStatsQuery = z.object({
 });
 
 export type NewsletterStatsQuery = z.infer<typeof newsletterStatsQuery>;
-export type NewsletterStatsResponse = Awaited<
-  ReturnType<typeof getEmailMessages>
->;
+type NewsletterStatsResult = Awaited<ReturnType<typeof getEmailMessages>>;
+export type NewsletterStatsResponse = Omit<
+  NewsletterStatsResult,
+  "newsletters"
+> & {
+  newsletters: (NewsletterStatsResult["newsletters"][number] & {
+    emailAccountId?: string;
+    userEmail?: string;
+  })[];
+};
 
 async function getEmailMessages(
   options: {

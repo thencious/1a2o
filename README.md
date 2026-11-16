@@ -1,31 +1,61 @@
-# Open Inbox Zero
+# 1a2o
 
-**Powered by OpenRouter.** This is a fork of [Inbox Zero](https://github.com/elie222/inbox-zero), with an optional local OpenRouter gateway, persistent background automation, and mailbox usability improvements. Upstream's other AI providers remain available.
+A personal workspace for mail, messages, calendars, tasks, notes, contacts, and AI. A public fork of [Inbox Zero](https://github.com/elie222/inbox-zero), powered by **OpenRouter** for classification and task analysis, with optional ChatGPT sign-in for Chat.
 
-### Added functionality
+![Unified mail with split preview and account colors](docs/screenshots/mail.png)
 
-- **Quota-aware OpenRouter AI:** a loopback-only gateway with persistent request counters, configurable minute/day limits, UTC-day reset, a full cooldown after each request batch, and a free-model-only mode. With a 1,000-request budget, 100 calls are reserved for new mail and interactive use.
-- **Ten emails per bulk classification:** older messages can receive different tags in a single AI call. Decisions are saved before label writes, so a provider retry can reuse them.
-- **Priority for new mail:** independent mailbox polling every five seconds, a persistent work queue, and execution capacity reserved for recent arrivals. AI latency and provider limits still affect completion time.
-- **Combined inbox by default:** returning from Assistant opens All Accounts. Account colors distinguish messages; the combined view uses a neutral dark palette.
-- **Compact split reader:** a separate preview column, Up/Down email navigation, recipient addresses beside senders, tags before sender names, attachments above message bodies, and subdued marketing rows.
-- **Tag selection controls:** toggle individual tags, select or deselect all, or use the context-menu Focus action without disabling automation rules.
-- **Recoverable drafts and reliable sends:** account-scoped PostgreSQL creation receipts recover lost responses; Outlook records draft IDs before follow-up updates. Attachment preservation, send deduplication, and accurate pre-send failure reporting protect the draft-to-send flow.
-- **Windows background services:** a readiness-checking launcher and optional sign-in startup. A separate scheduled-mail worker handles Send later, reminders, and snoozes every 15 seconds, independently of AI quotas.
-- **Provider fixes:** Outlook ISO arrival dates retain their real timestamps, and signed Google Calendar state can use an explicitly registered callback.
-- **Local font assets:** Inter is bundled with its license, removing a build-time font download.
+## Start here
 
-### Run this edition
+- **New installation:** [Getting started](docs/GETTING-STARTED.md), then [local server configuration](LOCAL-SETUP.md).
+- **Android phone or tablet:** [Install and pair Android](docs/ANDROID.md). Reuses an existing installation and its connected accounts; Agents stays on desktop.
+- **See the app:** [Feature gallery](docs/FEATURES.md). Every screenshot uses fictional data in isolated copies of the real interface.
+- **Tasks and Notes backup:** [Private cloud sync and recovery](docs/SYNC.md).
 
-See **[LOCAL-SETUP.md](LOCAL-SETUP.md)** for prerequisites, private configuration, Windows setup, OAuth callbacks, quota behavior, and verification commands. Microsoft account setup is covered in **[OUTLOOK-SETUP.md](OUTLOOK-SETUP.md)**.
+## What is included
 
-The gateway defaults to **20 requests/minute and 50/day**. Set the daily budget to 1,000 only when your OpenRouter account has the corresponding allowance; changing a local setting does not upgrade an account. See [OpenRouter's published limits](https://openrouter.ai/pricing). Mail content selected for AI processing is sent to OpenRouter and the selected model provider.
+| Workspace | Features |
+| --- | --- |
+| Mail | Gmail and Outlook together by default; cached lists and counts; split preview; account colors; keyboard navigation; recoverable drafts; send, reply, forward, attachments, scheduled mail and reminders. |
+| Messages | Beeper-connected networks, one conversation per row, groups and direct messages, platform filters, rule labels, combined conversations with a send-account switch, queued image attachments, media viewer, links, and platform-supported replies, edits, reactions, recall and forwarding. Discord servers are excluded. |
+| Calendar | Unified month and editable day timelines, persistent calendar visibility, distinct calendar colors, writable-calendar selection, drag to move and Alt-drag to copy. Provider permissions determine which originals can be edited. |
+| Tasks | Quick entry, AI time/deadline analysis, overdue and priority groups, rich notes, calendar event creation with duplicate review, deadline reminders, and transfer to Notes. |
+| Notes | Markdown and rich-text editing, automatic first-line titles, drag ordering, date filters and compact timestamps, and AI-assisted transfer to Tasks. |
+| Contacts | Profiles across supported networks and mail, exact-name deduplication with retained unique fields/profile links, and optional LinkedIn sync. Messaging-network APIs determine available contact details. |
+| Chat | Original in-app assistant with application tools and data; model/thinking controls and keyboard shortcuts; OpenRouter or optional ChatGPT connection; Open in ChatGPT button. ChatGPT subscription login is separate from OpenRouter classification. |
+| Agents | Desktop Codex CLI panels, conversation picker, title refresh, drag ordering, native terminal keys, optional multi-call scheduler, reset-aware timing, and task attention alerts. |
+| Tools | Rules separated by Mail, Messages, Calendar and Tasks; classification usage history and daily graphs; cleanup tools and combined-inbox bulk unsubscribe with resumable history scanning. |
 
-Validation includes focused unit tests, browser recovery tests, production builds, and delivery/reply/forward/attachment/scheduling checks between controlled mailboxes. Credentials, mailbox databases, runtime logs, and private screenshots are not included in this repository.
+![Unified messages](docs/screenshots/messages.png)
 
-Upstream licensing and its additional terms remain unchanged; see [LICENSE](LICENSE). Inter's separate license is included beside the font. The original upstream README follows.
+![Unified calendar](docs/screenshots/calendar.png)
 
----
+![Tasks](docs/screenshots/tasks.png)
+
+![Notes](docs/screenshots/notes.png)
+
+More screenshots, including Contacts, Chat, Agents, Rules, Usage, bulk unsubscribe and Android pairing, are in the [gallery](docs/FEATURES.md).
+
+## AI and quotas
+
+The optional local OpenRouter gateway persists minute/day request counters, uses an absolute **00:00 UTC** daily reset, and applies cooldowns. Configuration does not upgrade an OpenRouter account. The conservative default is 20 requests/minute and 50/day; use your provider's actual allowance. Existing-mail tagging is capped at 500 calls/day in the configured edition; bulk tagging can classify ten emails per call, with capacity reserved for new mail and interactive requests. Message conversations are reclassified only when relevant content, title or rules change, with the configured daily existing-chat cap.
+
+The Usage tool shows recorded usage and failures by feature and day. AI-selected content is sent to the configured provider. Provider latency, quotas and platform-specific API capabilities still apply.
+
+## Local, Android and cloud
+
+The backend runs on your computer or a self-hosted server. It owns OAuth credentials, email/calendar operations, Beeper access, AI automation and persistent data. Android connects to that same backend instead of requiring you to configure accounts twice. Beeper Desktop must be available on the backend host for its messaging APIs. Android includes uploads/downloads, external-browser authorization and optional background notifications; the server must be reachable for live mail/messages/calendar operations.
+
+Tasks and Notes retain local copies and have a separate encrypted cloud-sync path. Consult [sync and recovery](docs/SYNC.md) for the exact offline, conflict and recovery behavior. This is not a claim that email providers or AI run offline.
+
+The repository contains source, synthetic screenshots, example configuration and reproducible build scripts. It excludes credentials, OAuth exports, mailbox databases, private screenshots, device sessions, signing keys and local build artifacts. APKs belong in GitHub Releases, not source control.
+
+## Upstream and licensing
+
+This repository remains a fork of Inbox Zero. Upstream licensing and additional terms are unchanged; see [LICENSE](LICENSE). The vendored Tasks editor retains its [source attribution and license](apps/web/public/open-todo-zero/INTEGRATION.md). Inter and other vendored dependencies retain their own notices.
+
+<details>
+<summary>Original Inbox Zero documentation</summary>
+
 
 [![](apps/web/app/opengraph-image.jpg)](https://www.getinboxzero.com)
 
@@ -155,3 +185,5 @@ For development against real providers, continue to use `pnpm setup`, your own e
 View open tasks in [GitHub Issues](https://github.com/elie222/inbox-zero/issues) and join our [Discord](https://www.getinboxzero.com/discord) to discuss what's being worked on.
 
 Docker images are automatically built on every push to `main` and tagged with the commit SHA (e.g., `elie222/inbox-zero:abc1234`). The `latest` tag always points to the most recent main build. Formal releases are tagged with the version number without the `v` prefix (e.g., git tag `v2.30.0` → `ghcr.io/elie222/inbox-zero:2.30.0`), plus a minor alias (e.g., `2.30`).
+
+</details>

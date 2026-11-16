@@ -4,7 +4,9 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { Maximize2Icon, Minimize2Icon, XIcon } from "lucide-react";
@@ -28,6 +30,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/utils";
 import { useCloseComposeOnMailExit } from "./useCloseComposeOnMailExit";
+import { parseMailto } from "@/utils/email/mailto";
 
 export type PoppedOutReply = {
   emailAccountId: string;
@@ -61,6 +64,11 @@ export function ComposeModalProvider(props: { children: React.ReactNode }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [composerKey, setComposerKey] = useState(0);
   const [poppedOutReply, setPoppedOutReply] = useState<PoppedOutReply>();
+  const [linkCompose, setLinkCompose] = useState<{
+    id: string;
+    message: ReplyingToEmail;
+  }>();
+  const handledMailto = useRef<string | null>(null);
   // A popped-out reply belongs to the account it was written from.
   const reply =
     poppedOutReply?.emailAccountId === emailAccountId
@@ -78,6 +86,7 @@ export function ComposeModalProvider(props: { children: React.ReactNode }) {
     returnOpenReply();
     setIsExpanded(false);
     setPoppedOutReply(undefined);
+    setLinkCompose(undefined);
     openModal();
   }, [openModal, returnOpenReply]);
   const popOutReply = useCallback(
@@ -85,6 +94,7 @@ export function ComposeModalProvider(props: { children: React.ReactNode }) {
       returnOpenReply();
       setIsExpanded(false);
       setPoppedOutReply(nextReply);
+      setLinkCompose(undefined);
       openModal();
     },
     [openModal, returnOpenReply],
@@ -135,6 +145,33 @@ export function ComposeModalProvider(props: { children: React.ReactNode }) {
     [openCompose, popOutReply, isOpen, reply?.draftSessionId],
   );
   useCloseComposeOnMailExit({ isMailView, closeCompose });
+
+  const mailto = searchParams.get("mailto");
+  const composeRequest = searchParams.get("composeRequest");
+  useEffect(() => {
+    if (!isMailView || mailto === null) return;
+    const request = composeRequest ?? mailto;
+    if (handledMailto.current === request) return;
+    handledMailto.current = request;
+    const message = parseMailto(mailto);
+    if (!message) {
+      toastError({ description: "This email link is invalid." });
+      return;
+    }
+    returnOpenReply();
+    setPoppedOutReply(undefined);
+    setLinkCompose({
+      id: `mailto:${composeRequest ?? crypto.randomUUID()}`,
+      message,
+    });
+    setIsExpanded(false);
+    openModal();
+    // Keep addresses and message content out of the visible URL after opening.
+    const url = new URL(window.location.href);
+    url.searchParams.delete("mailto");
+    url.searchParams.delete("composeRequest");
+    window.history.replaceState(null, "", url);
+  }, [isMailView, mailto, composeRequest, openModal, returnOpenReply]);
 
   return (
     <ComposeModalContext.Provider value={contextValue}>
@@ -238,8 +275,9 @@ export function ComposeModalProvider(props: { children: React.ReactNode }) {
                 />
               ) : (
                 <ComposeEmailFormLazy
-                  key={composerKey}
-                  draftSessionId="compose:new-message"
+                  key={`${linkCompose?.id ?? "new"}:${composerKey}`}
+                  draftSessionId={linkCompose?.id ?? "compose:new-message"}
+                  replyingToEmail={linkCompose?.message}
                   fromAccounts={accountsData?.emailAccounts}
                   layout="window"
                   onClose={closeCompose}
@@ -247,10 +285,7 @@ export function ComposeModalProvider(props: { children: React.ReactNode }) {
                     closeCompose();
                     return true;
                   }}
-                  onRestore={() => {
-                    setComposerKey((key) => key + 1);
-                    openCompose();
-                  }}
+                  onRestore={restoreCompose}
                   onSuccess={closeCompose}
                 />
               )}

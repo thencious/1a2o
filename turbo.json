@@ -1,12 +1,17 @@
 {
   "$schema": "https://turbo.build/schema.json",
-  "globalDependencies": ["**/.env.*local"],
+  "globalDependencies": [
+    "**/.env.*local",
+    "packages/email-editor/src/**",
+    "packages/mail-ui/src/**"
+  ],
   "tasks": {
     "build": {
       "env": [
         "VERCEL_ENV",
         "VERCEL_URL",
         "NODE_ENV",
+        "LOCAL_NEXT_BUILD_DIR",
         "SKIP_TYPE_CHECK",
         "INBOX_ZERO_ENV_FILE",
         "DATABASE_URL",
@@ -202,6 +207,13 @@
         "COMPOSIO_API_KEY",
         "INTERNAL_API_URL",
         "INTERNAL_API_KEY",
+        "LOCAL_AGENTS_ENABLED",
+        "LOCAL_BEEPER_ENABLED",
+        "LOCAL_BEEPER_OWNER_ID",
+        "LOCAL_AGENTS_OWNER_ID",
+        "LOCAL_AGENTS_TIMER_ROOT",
+        "LOCAL_AGENTS_CODEX_PATH",
+        "LOCAL_AGENTS_PYTHON",
         "WHITELIST_FROM",
         "API_KEY_SALT",
         "HEALTH_API_KEY",
@@ -379,6 +391,13 @@
         "SENSITIVE_DATA_POLICY_DEFAULT",
         "NEXT_PUBLIC_SENSITIVE_DATA_POLICY_LOCKED",
         "INTERNAL_API_KEY",
+        "LOCAL_AGENTS_ENABLED",
+        "LOCAL_BEEPER_ENABLED",
+        "LOCAL_BEEPER_OWNER_ID",
+        "LOCAL_AGENTS_OWNER_ID",
+        "LOCAL_AGENTS_TIMER_ROOT",
+        "LOCAL_AGENTS_CODEX_PATH",
+        "LOCAL_AGENTS_PYTHON",
         "BLOG_SYNC_WEBHOOK_SECRET",
         "BLOG_SYNC_SANITY_AUTHOR_ID",
         "BLOG_SYNC_IMAGE_ALLOWED_HOSTS",

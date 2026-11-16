@@ -1,9 +1,10 @@
+import { retainWorkspacePage } from "@/components/retain-workspace-page";
 import { RuleForm } from "@/app/(app)/[emailAccountId]/assistant/RuleForm";
 import { getEmptyCondition } from "@/utils/condition";
 import { ActionType } from "@/generated/prisma/enums";
 import type { CoreConditionType } from "@/utils/config";
 
-export default async function CreateRulePage(props: {
+async function CreateRulePage(props: {
   searchParams: Promise<{
     groupId?: string;
     type?: CoreConditionType;
@@ -34,3 +35,5 @@ export default async function CreateRulePage(props: {
     </div>
   );
 }
+
+export default retainWorkspacePage(CreateRulePage);

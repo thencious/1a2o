@@ -1,11 +1,19 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import type { MailClient } from "@inboxzero/mail-core/engine";
 import type {
   ConversationSummary,
   MailPredicate,
 } from "@inboxzero/mail-core/queries";
+import { canonicalizeQuery } from "@inboxzero/mail-core/queries";
 import { useOptionalMailClient } from "@inboxzero/mail-react/MailEngineProvider";
 import { useMailboxWindow } from "@inboxzero/mail-react/use-mailbox-window";
 import type { ListThread } from "@/app/(app)/[emailAccountId]/mail/types";
@@ -15,6 +23,11 @@ import type { ThreadsQuery } from "@/utils/threads/validation";
 import { conversationSummaryToListThread } from "@/utils/mail-engine/list-thread";
 import { threadsQueryToConversationQuery } from "@/utils/mail-engine/threads-query";
 import { isMetadataCoverageComplete } from "@/utils/mail-engine/coverage";
+import {
+  readMailboxPreview,
+  saveMailboxPreview,
+  subscribeMailboxPreviews,
+} from "@/utils/mail-engine/mailbox-preview-cache";
 
 const EMPTY_THREADS: ListThread[] = [];
 const NO_LABELS_BY_ACCOUNT: Record<string, EmailLabels> = {};
@@ -50,6 +63,28 @@ export function useEngineMailThreads({
     client,
     enabled: enabled && Boolean(client),
   });
+  const stablePreviewQuery = useRef(conversationQuery);
+  if (
+    canonicalizeQuery(stablePreviewQuery.current) !==
+    canonicalizeQuery(conversationQuery)
+  )
+    stablePreviewQuery.current = conversationQuery;
+  const previewQuery = stablePreviewQuery.current;
+  const readPreview = useCallback(
+    () => (enabled ? readMailboxPreview(previewQuery) : null),
+    [enabled, previewQuery],
+  );
+  const preview = useSyncExternalStore(
+    subscribeMailboxPreviews,
+    readPreview,
+    emptyPreview,
+  );
+  const liveReady = Boolean(client) && mailbox.status === "ready";
+  const displayedMailbox = liveReady ? mailbox.data : preview;
+  useEffect(() => {
+    if (enabled && liveReady && mailbox.data)
+      saveMailboxPreview(previewQuery, mailbox.data);
+  }, [enabled, liveReady, previewQuery, mailbox.data]);
   const [failedAccountIds, setFailedAccountIds] = useState<string[]>([]);
 
   useEffect(() => {
@@ -80,20 +115,21 @@ export function useEngineMailThreads({
     threads: EMPTY_THREADS,
   });
   const threads = useMemo(() => {
-    if (!client || !enabled) return EMPTY_THREADS;
-    const conversations = mailbox.data?.conversations;
+    if (!enabled) return EMPTY_THREADS;
+    const conversations = displayedMailbox?.conversations;
     if (!conversations?.length) return EMPTY_THREADS;
     return reuseUnchangedThreads(
       previousThreads.current,
       conversations,
       accounts,
     );
-  }, [accounts, client, enabled, mailbox.data?.conversations]);
+  }, [accounts, enabled, displayedMailbox?.conversations]);
 
   return {
     threads,
     searchError: undefined,
-    isLoading: enabled && Boolean(client) && mailbox.status === "loading",
+    isLoading:
+      enabled && !displayedMailbox && (!client || mailbox.status === "loading"),
     error: mailboxQueryError(mailbox.error),
     hasMore: mailbox.canLoadMore,
     isLoadingMore: mailbox.isLoadingMore,
@@ -111,6 +147,10 @@ export function useEngineMailThreads({
       await client?.requestSync(resolvedAccountIds);
     },
   };
+}
+
+function emptyPreview() {
+  return null;
 }
 
 export function useEngineMailClient(): MailClient | null {

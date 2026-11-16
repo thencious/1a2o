@@ -65,11 +65,6 @@ export async function loadEmails(
     nextPageToken = res.data.nextPageToken ?? undefined;
     loadedAfterMessages += res.data.messages?.length || 0;
 
-    if (!res.data.messages || res.data.messages.length < PAGE_SIZE) {
-      hasMoreAfter = false;
-      break;
-    }
-
     pages++;
 
     if (!nextPageToken) {
@@ -127,11 +122,6 @@ export async function loadEmails(
     nextPageToken = res.data.nextPageToken ?? undefined;
     loadedBeforeMessages += res.data.messages?.length || 0;
 
-    if (!res.data.messages || res.data.messages.length < PAGE_SIZE) {
-      hasMoreBefore = false;
-      break;
-    }
-
     pages++;
 
     if (!nextPageToken) {
@@ -151,6 +141,42 @@ export async function loadEmails(
     hasMoreAfter,
     hasMoreBefore,
   };
+}
+
+// A full cursor walk fills gaps that date-bound incremental scans cannot detect.
+export async function scanEmailHistory({
+  emailAccountId,
+  emailProvider,
+  logger,
+  pageToken,
+  maxPages = 10,
+}: {
+  emailAccountId: string;
+  emailProvider: EmailProvider;
+  logger: Logger;
+  pageToken?: string;
+  maxPages?: number;
+}) {
+  let loadedMessages = 0;
+  let pages = 0;
+  let nextPageToken = pageToken;
+  do {
+    const previousToken = nextPageToken;
+    const result = await saveBatch({
+      emailAccountId,
+      emailProvider,
+      logger,
+      nextPageToken,
+      before: undefined,
+      after: undefined,
+    });
+    loadedMessages += result.data.messages?.length ?? 0;
+    pages++;
+    nextPageToken = result.data.nextPageToken ?? undefined;
+    if (nextPageToken && nextPageToken === previousToken)
+      throw new Error("Email history cursor did not advance");
+  } while (nextPageToken && pages < maxPages);
+  return { pages, loadedMessages, nextPageToken: nextPageToken ?? null };
 }
 
 export async function saveBatch({

@@ -70,6 +70,51 @@ describe("handleCalendarCallback", () => {
     );
   });
 
+  it("keeps the existing connection when editing consent omits write access", async () => {
+    googleAuth.getToken.mockResolvedValueOnce({
+      tokens: {
+        access_token: "new-read-token",
+        refresh_token: "new-refresh",
+        scope: "https://www.googleapis.com/auth/calendar.readonly",
+      },
+      res: null,
+    });
+    const response = await runCallback(true);
+    expect(response.headers.get("location")).toContain(
+      "error=editing_permission_required",
+    );
+    expect(response.headers.get("location")).toContain(
+      "calendarAccount=email-account-id",
+    );
+    expect(prisma.calendarConnection.update).not.toHaveBeenCalled();
+    expect(prisma.calendarConnection.create).not.toHaveBeenCalled();
+  });
+
+  it("upgrades an existing connection after Google grants event write access", async () => {
+    googleAuth.getToken.mockResolvedValueOnce({
+      tokens: {
+        access_token: "new-write-token",
+        refresh_token: "new-refresh",
+        scope: "https://www.googleapis.com/auth/calendar.events",
+        expiry_date: expiresAt.getTime(),
+        id_token: "id-token",
+      },
+      res: null,
+    });
+    const response = await runCallback(true);
+    expect(response.headers.get("location")).toContain(
+      "message=calendar_connected",
+    );
+    expect(prisma.calendarConnection.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          accessToken: "new-write-token",
+          isConnected: true,
+        }),
+      }),
+    );
+  });
+
   it("reconnects the existing row with fresh tokens without changing calendar settings", async () => {
     const response = await runCallback();
 
@@ -83,7 +128,7 @@ describe("handleCalendarCallback", () => {
       },
     });
     expect(response.headers.get("location")).toBe(
-      "http://localhost:3000/email-account-id/calendars?message=calendar_connected",
+      "http://localhost:3000/settings?calendarAccount=email-account-id&message=calendar_connected#calendar-settings",
     );
     expect(setOAuthCodeResult).toHaveBeenCalledWith(code, {
       message: "calendar_connected",
@@ -186,10 +231,11 @@ describe("handleCalendarCallback", () => {
   });
 });
 
-function runCallback() {
+function runCallback(requireWrite = false) {
   const state = generateSignedOAuthState({
     emailAccountId: connection.emailAccountId,
     type: "calendar",
+    requireWrite,
   });
   const url = new URL("http://localhost:3000/api/google/calendar/callback");
   url.searchParams.set("code", code);

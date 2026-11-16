@@ -17,8 +17,12 @@ vi.mock("@/app/(app)/[emailAccountId]/mail/ReaderToolbar", () => ({
   ReaderToolbar: ({ subject }: { subject: string }) => <h1>{subject}</h1>,
 }));
 vi.mock("@/components/email-list/EmailThread", () => ({
-  EmailThread: ({ renderToolbar }: { renderToolbar: () => ReactNode }) =>
-    renderToolbar(),
+  EmailThread: ({ renderToolbar }: { renderToolbar: () => ReactNode }) => (
+    <>
+      {renderToolbar()}
+      <textarea aria-label="Open reply" />
+    </>
+  ),
 }));
 vi.mock("@/components/team-comments/PublisherDiscussion", () => ({
   PublisherDiscussion: () => null,
@@ -35,6 +39,34 @@ class MockResizeObserver {
 
 describe("ThreadReader", () => {
   afterEach(cleanup);
+
+  it("keeps the reader and unsaved editor through a background refresh failure", () => {
+    const options = {
+      refetch: vi.fn(),
+      messages: [createMessage("message-1", "Plan", ["INBOX"])],
+    };
+    const view = renderReader(options);
+    const editor = screen.getByRole("textbox", { name: "Open reply" });
+    const reader = screen.getByTestId("thread-reader");
+    fireEvent.change(editor, { target: { value: "My latest edits" } });
+    editor.focus();
+    reader.scrollTop = 500;
+    view.rerender(
+      readerElement({
+        ...options,
+        error: { error: "Couldn't refresh this conversation." },
+      }),
+    );
+    expect(screen.getByRole("textbox", { name: "Open reply" })).toBe(editor);
+    expect((editor as HTMLTextAreaElement).value).toBe("My latest edits");
+    expect(document.activeElement).toBe(editor);
+    expect(screen.getByTestId("thread-reader")).toBe(reader);
+    expect(reader.scrollTop).toBe(500);
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(options.refetch).toHaveBeenCalledOnce();
+    view.rerender(readerElement(options));
+    expect(screen.getByRole("textbox", { name: "Open reply" })).toBe(editor);
+  });
 
   it("explains a thread that failed to load and offers a retry", () => {
     const refetch = vi.fn();
@@ -74,7 +106,11 @@ describe("ThreadReader", () => {
   });
 });
 
-function renderReader({
+function renderReader(options: Parameters<typeof readerElement>[0]) {
+  return render(readerElement(options));
+}
+
+function readerElement({
   error,
   refetch,
   messages = [],
@@ -83,7 +119,7 @@ function renderReader({
   refetch: () => void;
   messages?: ThreadMessage[];
 }) {
-  return render(
+  return (
     <ThreadReader
       detailSelectionSettled
       enableMessageNavigation={false}
@@ -101,7 +137,7 @@ function renderReader({
       thread={null}
       threadId="thread-1"
       userLabels={{}}
-    />,
+    />
   );
 }
 

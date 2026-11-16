@@ -136,20 +136,22 @@ export const MailAccountSwitcher = memo(function MailAccountSwitcher({
               <DropdownMenuSeparator />
             </>
           ) : null}
-          {data.emailAccounts.map((account, index) => (
-            <AccountItem
-              account={account}
-              isActive={!isAllAccounts && account.id === emailAccount?.id}
-              isDesktopApp={isDesktopApp}
-              key={account.id}
-              onSelect={onSelectAccount}
-              shortcutKey={
-                isDesktopApp
-                  ? getShortcut("switchAccount").keys[index]
-                  : undefined
-              }
-            />
-          ))}
+          <div className="-mx-2 overflow-hidden">
+            {data.emailAccounts.map((account, index) => (
+              <AccountItem
+                account={account}
+                isActive={!isAllAccounts && account.id === emailAccount?.id}
+                isDesktopApp={isDesktopApp}
+                key={account.id}
+                onSelect={onSelectAccount}
+                shortcutKey={
+                  isDesktopApp
+                    ? getShortcut("switchAccount").keys[index]
+                    : undefined
+                }
+              />
+            ))}
+          </div>
           <DropdownMenuSeparator />
           <DropdownMenuItem asChild className="gap-3 rounded-xl p-3">
             <Link href="/accounts">
@@ -193,7 +195,8 @@ function AccountItem({
 
   return (
     <DropdownMenuItem
-      className="gap-3 rounded-xl p-3"
+      className="mail-account-theme mail-account-menu-row gap-3 rounded-none px-5 py-3"
+      style={accountTheme}
       onPointerDown={(event) => {
         openInNewWindow.current =
           isDesktopApp && isDesktopNewWindowClick(event);
@@ -217,16 +220,11 @@ function AccountItem({
         onSelect(account.id);
       }}
     >
-      <span
-        className="mail-account-theme mail-account-badge rounded-full p-0.5"
-        style={accountTheme}
-      >
-        <ProfileImage
-          className="size-9"
-          image={account.image}
-          label={account.name || account.email}
-        />
-      </span>
+      <ProfileImage
+        className="size-10"
+        image={account.image}
+        label={account.name || account.email}
+      />
       <span className="min-w-0 flex-1">
         <span className="block truncate font-medium">
           {account.name || account.email}

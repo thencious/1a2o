@@ -1,3 +1,4 @@
+import { retainWorkspacePage } from "@/components/retain-workspace-page";
 import { Suspense } from "react";
 import { SparklesIcon } from "lucide-react";
 import { cookies } from "next/headers";
@@ -20,12 +21,15 @@ import { AutomationTabs } from "@/app/(app)/[emailAccountId]/automation/Automati
 
 export const maxDuration = 300; // Applies to the actions
 
-export default async function AutomationPage({
+async function AutomationPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ emailAccountId: string }>;
+  searchParams: Promise<{ domain?: string }>;
 }) {
   const { emailAccountId } = await params;
+  const { domain } = await searchParams;
   await checkUserOwnsEmailAccount({ emailAccountId });
 
   // onboarding redirect
@@ -33,7 +37,7 @@ export default async function AutomationPage({
   const viewedOnboarding =
     cookieStore.get(ASSISTANT_ONBOARDING_COOKIE)?.value === "true";
 
-  if (!viewedOnboarding) {
+  if (!viewedOnboarding && (!domain || domain === "mail")) {
     const hasRule = await prisma.rule.findFirst({
       where: { emailAccountId },
       select: { id: true },
@@ -90,3 +94,5 @@ export default async function AutomationPage({
     </EmailLabelsProvider>
   );
 }
+
+export default retainWorkspacePage(AutomationPage);

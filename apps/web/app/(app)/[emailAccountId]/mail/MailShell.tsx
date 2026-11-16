@@ -73,7 +73,7 @@ import {
   isThreadUnread,
 } from "@/app/(app)/[emailAccountId]/mail/read-state";
 import { MailLayout, MailSplitFilterKind } from "@/generated/prisma/enums";
-import { useSidebar } from "@/components/ui/sidebar";
+import { useComposeModal } from "@/providers/ComposeModalProvider";
 import { useAtomValue, useSetAtom } from "jotai";
 import {
   commandPaletteOpenAtom,
@@ -150,7 +150,7 @@ export function MailShell() {
   const { userLabels: allLabels, mutate: mutateLabels } = useLabels();
   const { folders } = useFolders(provider);
   const { data: settings, mutate: mutateSettings } = useMailSettings();
-  const { toggleSidebar } = useSidebar();
+  const { onOpen: onCompose } = useComposeModal();
   const isPaletteOpen = useAtomValue(commandPaletteOpenAtom);
   const isHelpOpen = useAtomValue(shortcutsDialogOpenAtom);
   const setIsHelpOpen = useSetAtom(shortcutsDialogOpenAtom);
@@ -196,6 +196,10 @@ export function MailShell() {
   }, []);
 
   const isAllAccounts = accountScope === "all";
+  const mailboxType =
+    scopeType === "spam" || scopeType === "trash" ? scopeType : undefined;
+  const isFolderView =
+    scopeType === "sent" || scopeType === "draft" || scopeType === "archive";
   const mailboxTheme = useMailAccountTheme(
     isAllAccounts ? null : emailAccountId,
   );
@@ -289,7 +293,7 @@ export function MailShell() {
       return mailTypeToThreadsQuery(scopeType);
     return null;
   }, [scopeFolderId, scopeLabelId, scopeType]);
-  const isScoped = !isAllAccounts && scopeQuery !== null;
+  const isScoped = (!isAllAccounts || isFolderView) && scopeQuery !== null;
 
   const searchEditIdentity = JSON.stringify([
     emailAccountId,
@@ -434,8 +438,14 @@ export function MailShell() {
   const combinedThreadState = useCombinedMailThreads({
     accounts: combinedAccounts,
     emailAccountId,
-    enabled: isAllAccounts && searchSettled && !noTagsSelected,
-    splitSelection: searchQuery ? undefined : splitSelection,
+    enabled:
+      isAllAccounts &&
+      searchSettled &&
+      (!noTagsSelected || Boolean(mailboxType)),
+    mailboxType,
+    scopeQuery: isFolderView ? scopeQuery : undefined,
+    splitSelection:
+      searchQuery || mailboxType || isFolderView ? undefined : splitSelection,
     splits,
     portableLabelSplits: combinedLabelSplits,
     isUnread:
@@ -469,7 +479,9 @@ export function MailShell() {
     : accountThreadState;
   const { threads, archive: optimisticArchive } = useOptimisticArchive(
     searchSettled ? remoteThreads : EMPTY_SEARCH_THREADS,
-    isAllAccounts ? !searchQuery : threadListQueryRequiresInbox(query),
+    isAllAccounts
+      ? !searchQuery && !mailboxType && !isFolderView
+      : threadListQueryRequiresInbox(query),
     JSON.stringify([emailAccountId, isAllAccounts]),
   );
   const searchViewIdentity = JSON.stringify([
@@ -494,7 +506,7 @@ export function MailShell() {
   // Local reads answer fast, so the list stays blank while one is in flight
   // rather than flashing a spinner.
   let emptyListMessage: ReactNode;
-  if (noTagsSelected) {
+  if (noTagsSelected && !mailboxType) {
     emptyListMessage = "No tags selected";
   } else if (isLoading || !searchSettled) {
     emptyListMessage = null;
@@ -517,12 +529,20 @@ export function MailShell() {
 
   const selection = useThreadSelection(orderedIds);
   const onToggleSplit = useStableCallback((id: string) => {
-    setActiveSplitId(toggleSplitSelection(activeSplitId, id, splits));
+    if (mailboxType) setScopeType(null);
+    setActiveSplitId(
+      mailboxType
+        ? id === "all"
+          ? null
+          : id
+        : toggleSplitSelection(activeSplitId, id, splits),
+    );
     selection.clear();
     setFocusedIndex(0);
     setOpenThread(null);
   });
   const onFocusSplit = useStableCallback((id: string | null) => {
+    if (mailboxType) setScopeType(null);
     setActiveSplitId(id);
     selection.clear();
     setFocusedIndex(0);
@@ -1426,6 +1446,33 @@ export function MailShell() {
     }
   });
 
+  const [isRefreshingMail, setIsRefreshingMail] = useState(false);
+  const refreshMail = useStableCallback(async () => {
+    if (isRefreshingMail) return;
+    if (!client) {
+      toast.error("Mail is still connecting. Try again shortly.");
+      return;
+    }
+    setIsRefreshingMail(true);
+    try {
+      const result = await client.requestSync(
+        isAllAccounts
+          ? combinedAccounts.map((account) => account.id)
+          : [emailAccountId],
+      );
+      if (result.status === "rejected")
+        toast.error(
+          admissionRejectionCopy(result.code) ?? "Could not refresh mail.",
+        );
+    } catch {
+      toast.error(
+        "Could not refresh mail. Check your connection and try again.",
+      );
+    } finally {
+      setIsRefreshingMail(false);
+    }
+  });
+
   const refetchReader = useStableCallback(() => {
     Promise.allSettled([refetchOpenThread(), refetchThreadList()]);
   });
@@ -1452,9 +1499,6 @@ export function MailShell() {
       });
     },
   );
-  const onToggleAssistant = useStableCallback(() =>
-    toggleSidebar(["chat-sidebar"]),
-  );
   const searchFolders = useMemo(
     () =>
       isOutlook && !isAllAccounts
@@ -1462,7 +1506,7 @@ export function MailShell() {
         : NO_SEARCH_OPTIONS,
     [folders, isAllAccounts, isOutlook],
   );
-  const showSplitTabs = !isScoped && !searchQuery;
+  const showSplitTabs = (!isScoped || Boolean(mailboxType)) && !searchQuery;
   const threadCount = threads.length;
   const { selectedCount, selectAll, clear: clearSelection } = selection;
   // Only offered once something is selected, so the tabs sit flush otherwise.
@@ -1570,7 +1614,9 @@ export function MailShell() {
                 onToggleLayout={toggleLayout}
                 expandedPreview={expandedPreview}
                 onTogglePreview={togglePreview}
-                onToggleAssistant={onToggleAssistant}
+                onCompose={onCompose}
+                onRefresh={refreshMail}
+                isRefreshing={isRefreshingMail}
                 selectAll={showSplitTabs ? null : selectAllCheckbox}
                 selectedCount={selection.selectedCount}
                 onArchiveSelected={archiveTargets}
@@ -1595,7 +1641,18 @@ export function MailShell() {
                   activeSplitId={displayedActiveSplitId}
                   onSelectSplit={onFocusSplit}
                   onToggleSplit={onToggleSplit}
-                  selectedSplitIds={checkedSplitIds}
+                  selectedSplitIds={
+                    mailboxType ? new Set<string>() : checkedSplitIds
+                  }
+                  mailboxType={mailboxType}
+                  onSelectMailbox={(type) => {
+                    setScopeLabelId(null);
+                    setScopeFolderId(null);
+                    setScopeType(type);
+                    selection.clear();
+                    setFocusedIndex(0);
+                    setOpenThread(null);
+                  }}
                   isAllAccounts={isAllAccounts}
                   getSenders={getSplitSenders}
                   countAccountIds={splitCountAccountIds}
@@ -1650,7 +1707,7 @@ export function MailShell() {
                       }
                       listKey={
                         isAllAccounts
-                          ? `all-accounts:${searchQuery ?? displayedActiveSplitId}`
+                          ? `all-accounts:${scopeType ?? "inbox"}:${searchQuery ?? displayedActiveSplitId}`
                           : JSON.stringify([query, displayedActiveSplitId])
                       }
                     />

@@ -1,3 +1,4 @@
+import { retainWorkspacePage } from "@/components/retain-workspace-page";
 import { Suspense } from "react";
 import Link from "next/link";
 import { PlusIcon } from "lucide-react";
@@ -8,7 +9,7 @@ import { PageHeading } from "@/components/Typography";
 import { Button } from "@/components/ui/button";
 import { prefixPath } from "@/utils/path";
 
-export default async function CleanHistoryPage(props: {
+async function CleanHistoryPage(props: {
   params: Promise<{ emailAccountId: string }>;
 }) {
   const { emailAccountId } = await props.params;
@@ -34,3 +35,5 @@ export default async function CleanHistoryPage(props: {
     </Card>
   );
 }
+
+export default retainWorkspacePage(CleanHistoryPage);

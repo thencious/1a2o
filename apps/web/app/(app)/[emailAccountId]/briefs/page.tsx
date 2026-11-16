@@ -1,4 +1,5 @@
 "use client";
+import { retainWorkspacePage } from "@/components/retain-workspace-page";
 
 import { PageWrapper } from "@/components/PageWrapper";
 import { PageHeader } from "@/components/PageHeader";
@@ -20,7 +21,7 @@ import { DeliveryChannelsSetting } from "@/app/(app)/[emailAccountId]/briefs/Del
 import { useProductAnalytics } from "@/hooks/useProductAnalytics";
 import { TimezoneDetector } from "@/components/TimezoneDetector";
 
-export default function MeetingBriefsPage() {
+function MeetingBriefsPage() {
   return (
     <>
       <TimezoneDetector />
@@ -136,3 +137,5 @@ function MeetingBriefsPageContent() {
     </PageWrapper>
   );
 }
+
+export default retainWorkspacePage(MeetingBriefsPage);

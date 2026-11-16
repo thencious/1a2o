@@ -88,14 +88,14 @@ const safeMcpFetch: FetchLike = async (url, init) => {
 };
 
 /**
- * GET/HEAD-style fetch for arbitrary user-supplied public https URLs. Private
+ * Fetch for arbitrary user-supplied public https URLs. Private
  * and internal targets are always refused and connections are pinned to the
  * checked addresses. Redirects are returned unfollowed (3xx responses) so the
  * caller can apply its own policy to each hop before requesting it.
  */
 export async function safePublicFetch(
   url: string,
-  init: Pick<UndiciRequestInit, "headers" | "signal"> = {},
+  init: Pick<UndiciRequestInit, "headers" | "signal" | "method" | "body"> = {},
 ): Promise<Response> {
   if (!url.startsWith("https://") || !isSafeExternalHttpUrl(url)) {
     throw new Error(

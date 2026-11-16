@@ -334,7 +334,7 @@ const parsedEnv = createEnv({
     RESEND_FROM_EMAIL: z
       .string()
       .optional()
-      .default("Inbox Zero <updates@transactional.getinboxzero.com>"),
+      .default("1a2o <updates@transactional.getinboxzero.com>"),
     CRON_SECRET: z.string().optional(),
     BLOG_SYNC_WEBHOOK_SECRET: z.string().min(1).optional(),
     BLOG_SYNC_SANITY_AUTHOR_ID: z.string().min(1).optional(),
@@ -360,6 +360,20 @@ const parsedEnv = createEnv({
     COMPOSIO_API_KEY: z.string().optional(),
     INTERNAL_API_URL: z.string().optional(),
     INTERNAL_API_KEY: z.string(),
+    LOCAL_NEXT_BUILD_DIR: z.preprocess(
+      (value) => (value === "" ? undefined : value),
+      z
+        .string()
+        .regex(/^\.next-(?:candidate|releases\/[a-zA-Z0-9_-]+)$/)
+        .optional(),
+    ),
+    LOCAL_AGENTS_ENABLED: z.enum(["true", "false"]).default("false"),
+    LOCAL_BEEPER_ENABLED: z.enum(["true", "false"]).default("false"),
+    LOCAL_BEEPER_OWNER_ID: z.string().optional(),
+    LOCAL_AGENTS_OWNER_ID: z.string().optional(),
+    LOCAL_AGENTS_TIMER_ROOT: z.string().optional(),
+    LOCAL_AGENTS_CODEX_PATH: z.string().optional(),
+    LOCAL_AGENTS_PYTHON: z.string().optional(),
     WHITELIST_FROM: z.string().optional(),
     HEALTH_API_KEY: z.string().optional(),
     OAUTH_PROXY_URL: z.string().url().optional(),
@@ -474,10 +488,10 @@ const parsedEnv = createEnv({
     NEXT_PUBLIC_IMAGE_PROXY_USE_APP_ROUTE: booleanString
       .optional()
       .default(false),
-    NEXT_PUBLIC_BRAND_NAME: z.string().trim().min(1).default("Inbox Zero"),
+    NEXT_PUBLIC_BRAND_NAME: z.string().trim().min(1).default("1a2o"),
     NEXT_PUBLIC_BRAND_LOGO_URL: z.string().optional(),
     NEXT_PUBLIC_BRAND_ICON_URL: z.string().optional().default("/icon.png"),
-    NEXT_PUBLIC_SLACK_BOT_NAME: z.string().trim().min(1).default("Inbox Zero"),
+    NEXT_PUBLIC_SLACK_BOT_NAME: z.string().trim().min(1).default("1a2o"),
     NEXT_PUBLIC_SELF_HOSTED_LOGIN_FOOTER_TEXT: z.string().optional(),
     NEXT_PUBLIC_CONTACTS_ENABLED: booleanString.optional().default(false),
     NEXT_PUBLIC_COOKIE_CONSENT_ENABLED: booleanString.optional().default(false),

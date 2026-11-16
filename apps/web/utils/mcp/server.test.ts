@@ -1,4 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+vi.mock("@/utils/ai/assistant/zenro-registry", () => ({
+  zenroRegistry: () => ({}),
+}));
 
 const {
   handleRequest,

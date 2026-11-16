@@ -49,7 +49,9 @@ export function DatePickerWithRange({
     dateRange?.from && dateRange?.to
       ? differenceInDays(dateRange.to, dateRange.from)
       : 0;
-  const relativeDateLabel = getRelativeDateLabel(days);
+  const relativeDateLabel = dateRange
+    ? getRelativeDateLabel(days)
+    : dateDropdown;
 
   return (
     <Popover modal={true}>

@@ -444,7 +444,7 @@ function createAppWindow(options?: {
     ...(bounds ? { x: bounds.x, y: bounds.y } : {}),
     minWidth: MIN_DESKTOP_WINDOW_WIDTH,
     minHeight: MIN_DESKTOP_WINDOW_HEIGHT,
-    title: "Inbox Zero",
+    title: "1a2o",
     ...getDesktopWindowChrome(),
     webPreferences: {
       preload: path.join(import.meta.dirname, "preload.cjs"),
@@ -863,7 +863,7 @@ function createDesktopMailProcess() {
       utilityProcess.fork(
         path.join(import.meta.dirname, "mail-engine-child.js"),
         [],
-        { serviceName: "Inbox Zero Mail Engine" },
+        { serviceName: "1a2o Mail Engine" },
       ),
     cookieHeader: async (url) => {
       const cookies = await ses.cookies.get({ url });
@@ -943,7 +943,7 @@ async function waitForLocalMailReady(window: BrowserWindow) {
         .executeJavaScript('document.body ? document.body.innerText : ""')
         .catch(() => ""),
     );
-    if (text.includes("Inbox Zero")) return true;
+    if (text.includes("1a2o")) return true;
     await new Promise((resolve) => setTimeout(resolve, 250));
   }
   return false;

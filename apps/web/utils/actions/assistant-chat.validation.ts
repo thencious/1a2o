@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { messageContextSchema } from "@/utils/ai/assistant/chat-context-validation";
 import { inlineEmailActionSchema } from "@/utils/ai/assistant/inline-email-actions";
+import { slashContextSchema } from "@/utils/messages/slash-context";
 
 export const ASSISTANT_CHAT_MAX_TEXT_LENGTH = 20_000;
 export const ASSISTANT_CHAT_MAX_TEXT_LENGTH_MESSAGE =
@@ -206,6 +207,7 @@ export const assistantInputSchema = z.object({
       }),
   }),
   context: messageContextSchema.optional(),
+  sourceContext: slashContextSchema.optional(),
   inlineActions: z.array(inlineEmailActionSchema).max(20).optional(),
   // Clients that can't render the assistant's inline email card markup would
   // show it as raw XML, so cards are opt-in per client.

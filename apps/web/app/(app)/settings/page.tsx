@@ -1,10 +1,11 @@
 "use client";
+import { retainWorkspacePage } from "@/components/retain-workspace-page";
 
 import { SettingsContent } from "@/app/(app)/settings/SettingsContent";
 import { PageHeader } from "@/components/PageHeader";
 import { useSettingsDialog } from "@/hooks/useSettingsDialog";
 
-export default function SettingsPage() {
+function SettingsPage() {
   const { isSettingsOpen } = useSettingsDialog();
 
   return (
@@ -17,3 +18,5 @@ export default function SettingsPage() {
     </div>
   );
 }
+
+export default retainWorkspacePage(SettingsPage);

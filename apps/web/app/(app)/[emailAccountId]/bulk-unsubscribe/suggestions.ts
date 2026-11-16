@@ -1,3 +1,4 @@
+import { newsletterKey } from "./identity";
 import type { NewsletterStatus } from "@/generated/prisma/enums";
 import {
   getHttpUnsubscribeLink,
@@ -42,7 +43,8 @@ export function getSuggestedModeRows<
   T extends UnsubscribeSuggestionItem & { name: string },
 >(items: T[], selected: ReadonlyMap<string, boolean>): T[] {
   return items.filter(
-    (item) => isUnsubscribeSuggestion(item) || selected.get(item.name),
+    (item) =>
+      isUnsubscribeSuggestion(item) || selected.get(newsletterKey(item)),
   );
 }
 

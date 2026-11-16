@@ -217,7 +217,7 @@ function CalendarBookingLinkCard({
         >
           {disabledByInboxZeroLink ? (
             <span className="text-sm text-muted-foreground">
-              Using Inbox Zero booking link
+              Using 1a2o booking link
             </span>
           ) : data ? (
             <CalendarBookingLinkForm

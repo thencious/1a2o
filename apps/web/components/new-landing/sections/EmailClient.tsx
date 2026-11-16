@@ -22,7 +22,7 @@ export const EMAIL_CLIENT_SECTION_ID = "email-client";
 
 const LAUNCH_VIDEO = {
   playbackId: "1K01tCypmkqhB3OZwCzO9j0202K0089aqXX02tYpgoUzztmc",
-  title: "Meet the Inbox Zero email app",
+  title: "Meet the 1a2o email app",
   thumbnailTime: 1.5,
 };
 

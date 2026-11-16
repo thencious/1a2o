@@ -91,7 +91,7 @@ export const ThreadList = memo(function ThreadList({
     useSentMessageOpensForThreads(sentThreadIds);
   const groupHeaderClassName = cn(
     "pt-4 pr-5 pb-1.5 font-normal text-muted-foreground text-sm",
-    selectionEnabled ? "pl-[3.25rem]" : "pl-8",
+    selectedCount > 0 ? "pl-[3.25rem]" : "pl-8",
   );
   const getGroupLabel = useCallback(
     (thread: ListThread) => {

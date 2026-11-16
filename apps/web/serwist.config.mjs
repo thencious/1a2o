@@ -5,7 +5,10 @@ import { serwist } from "@serwist/next/config";
 // Static assets are precached; app/sw.ts also keeps an offline mailbox shell.
 const config = await serwist({
   swSrc: "app/sw.ts",
-  swDest: "public/sw.js",
+  swDest: process.env.LOCAL_NEXT_BUILD_DIR
+    ? `${process.env.LOCAL_NEXT_BUILD_DIR}/sw.js`
+    : "public/sw.js",
+  globIgnores: ["public/sw.js", "public/sw.js.map"],
   maximumFileSizeToCacheInBytes: 3 * 1024 * 1024, // 3MB
   // The webpack plugin this replaces never precached prerendered HTML.
   precachePrerendered: false,

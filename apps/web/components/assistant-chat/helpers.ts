@@ -1,4 +1,5 @@
 import type { UIMessage, UIMessagePart } from "ai";
+import { slashContextSchema } from "@/utils/messages/slash-context";
 import type { GetChatResponse } from "@/app/api/chats/[chatId]/route";
 import type {
   ChatMessage,
@@ -14,6 +15,17 @@ export function convertToUIMessages(chat: GetChatResponse): ChatMessage[] {
       id: message.id,
       role: message.role as UIMessage<ChatMessage>["role"],
       parts: message.parts as UIMessagePart<CustomUIDataTypes, ChatTools>[],
+      ...(slashContextSchema.safeParse(
+        (message.metadata as { sourceContext?: unknown } | null)?.sourceContext,
+      ).success
+        ? {
+            metadata: {
+              sourceContext: slashContextSchema.parse(
+                (message.metadata as { sourceContext?: unknown }).sourceContext,
+              ),
+            },
+          }
+        : {}),
       // metadata: {
       //   createdAt: formatISO(message.createdAt),
       // },

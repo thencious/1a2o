@@ -10,6 +10,7 @@ and keep all client credentials private.
 2. Add Web redirect URIs exactly:
    - `http://localhost:3000/api/auth/callback/microsoft`
    - `http://localhost:3000/api/outlook/linking/callback`
+   - `http://localhost:3000/api/outlook/calendar/callback` (Calendar connection)
 3. Configure Microsoft Graph delegated permissions from the upstream guide:
    `openid`, `profile`, `email`, `User.Read`, `offline_access`, `Mail.ReadWrite`,
    `Mail.Send`, and `MailboxSettings.ReadWrite`. Optional integrations require
