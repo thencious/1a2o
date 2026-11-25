@@ -5,5 +5,7 @@ export default async function MailPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  await redirectToEmailAccountPath("/mail", await searchParams);
+  await redirectToEmailAccountPath("/mail", await searchParams, {
+    onboardNewUsers: true,
+  });
 }

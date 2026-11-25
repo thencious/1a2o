@@ -39,6 +39,7 @@ export async function combinedHistory(
     items: pages
       .flatMap(({ page }) => page.items)
       .sort((a, b) => Date.parse(a.time) - Date.parse(b.time)),
+    scanned: pages.flatMap(({ page }) => page.scanned ?? []),
     hasMore,
     cursor: hasMore
       ? Buffer.from(JSON.stringify(next)).toString("base64url")

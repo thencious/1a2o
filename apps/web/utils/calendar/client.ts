@@ -9,6 +9,7 @@ import {
   getGoogleOauthClientOptions,
 } from "@/utils/gmail/oauth";
 import { saveCalendarTokens } from "@/utils/calendar/save-calendar-tokens";
+import { markCalendarAuthorizationExpired } from "@/utils/calendar/mark-authorization-expired";
 
 type AuthOptions = {
   accessToken?: string | null;
@@ -107,6 +108,14 @@ export const getCalendarClientWithRefresh = async ({
     return cal;
   } catch (error) {
     if (isInvalidGrantError(error)) {
+      await markCalendarAuthorizationExpired({
+        emailAccountId,
+        connectionId,
+        provider: "google",
+        accessToken,
+        refreshToken,
+        logger,
+      });
       logger.warn("Error refreshing Calendar access token", {
         emailAccountId,
         error: error instanceof Error ? error.message : String(error),

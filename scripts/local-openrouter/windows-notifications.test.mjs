@@ -72,3 +72,15 @@ test("taskbar failure is reported without redelivering an accepted toast", async
   assert.deepEqual(methods,["GET","POST","POST"]);
   assert.match(result.errors[0],/Taskbar helper unavailable/);
 });
+
+test("a newly detected message requests taskbar attention once while other tabs are open",async()=>{
+ const flashes=[];let pending=true;
+ const run=()=>runDesktopNotificationsOnce({secret:"test",deliver:async events=>({ids:events.map(event=>event.id)}),syncAttention:async active=>{flashes.push(active);return {matched:1};},fetchImpl:async(_url,options)=>{
+  if(options.method==='POST'&&!JSON.parse(options.body).prepare){pending=false;return Response.json({saved:true});}
+  return Response.json({events:pending?[{id:"new-message",tab:"messages"}]:[],counts:{messages:1},errors:[]});
+ }});
+ {
+  const result=await run();assert.equal(result.delivered,1);assert.deepEqual(flashes,[true]);
+  await run();assert.deepEqual(flashes,[true]);
+ }
+});

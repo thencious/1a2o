@@ -126,7 +126,13 @@ export default async function AppLayout({
                 <DesktopMailIndicators />
                 <DesktopUpdateToast />
                 <AiAutomationStatusBanner />
-                <ErrorMessages />
+                <ErrorMessages
+                  checkBeeper={
+                    process.env.LOCAL_BEEPER_ENABLED === "true" &&
+                    process.env.LOCAL_BEEPER_OWNER_ID === session.user.id
+                  }
+                  checkLinkedIn={bypassPremiumChecks}
+                />
                 <ProviderRateLimitBanner />
                 <WorkspaceRetentionOutlet>{children}</WorkspaceRetentionOutlet>
               </SideNavWithTopNav>

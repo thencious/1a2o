@@ -5,6 +5,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
   useSyncExternalStore,
   type ReactNode,
@@ -28,6 +29,7 @@ import { LoadingContent } from "@/components/LoadingContent";
 import { env } from "@/env";
 import { getInboxZeroDesktopApp } from "@/utils/desktop-app";
 import { useAccount } from "@/providers/EmailAccountProvider";
+import { useAccounts } from "@/hooks/useAccounts";
 import {
   createBrowserMailEngine,
   type BrowserMailEngine,
@@ -155,6 +157,8 @@ function MailEngineRuntimeInner({ children }: { children: ReactNode }) {
     browserRequested,
   });
   const [client, setClient] = useState<MailClient | null>(null);
+  const { data: accountStatus } = useAccounts(Boolean(client), true);
+  const disconnected = useRef<Set<string>>(new Set());
   const [failed, setFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const retry = useCallback(() => {
@@ -357,6 +361,22 @@ function MailEngineRuntimeInner({ children }: { children: ReactNode }) {
       cancelled = true;
     };
   }, [client, emailAccountId]);
+
+  useEffect(() => {
+    if (!client || !accountStatus) return;
+    const recovered = accountStatus.emailAccounts
+      .filter(
+        ({ id, account }) =>
+          disconnected.current.has(id) && !account.disconnectedAt,
+      )
+      .map(({ id }) => id);
+    disconnected.current = new Set(
+      accountStatus.emailAccounts
+        .filter(({ account }) => account.disconnectedAt)
+        .map(({ id }) => id),
+    );
+    if (recovered.length) client.requestSync(recovered).catch(() => undefined);
+  }, [client, accountStatus]);
 
   useEffect(() => {
     // The desktop engine follows mailbox changes itself.

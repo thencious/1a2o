@@ -87,7 +87,7 @@ function observe(client: MailClient, target: WarmTarget): WarmObservation {
   const warmContent = () => {
     const view = handle.getSnapshot().data;
     if (!view) return;
-    requestMissingMessageContent(client, view, requested);
+    requestMissingMessageContent(client, view, requested, true);
     // The newest body opens expanded. Preparing its proxy URLs here keeps
     // that request off the navigation path without preparing the whole history.
     const message = view.messages.at(-1);

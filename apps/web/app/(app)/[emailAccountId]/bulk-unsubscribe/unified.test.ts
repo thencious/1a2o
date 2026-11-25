@@ -56,3 +56,17 @@ describe("unified unsubscribe sender list", () => {
     ]);
   });
 });
+
+it("skips known disconnected mailboxes without repeatedly calling the provider", async () => {
+  const load = vi.fn(async () => response([row]));
+  const result = await loadInboxNewsletters(
+    [
+      { ...accounts[0], account: { disconnectedAt: "2026-11-17T00:00:00Z" } },
+      accounts[1],
+    ],
+    load,
+  );
+  expect(load.mock.calls).toEqual([["outlook"]]);
+  expect(result.newsletters).toHaveLength(1);
+  expect(result.accountErrors[0].id).toBe("gmail");
+});

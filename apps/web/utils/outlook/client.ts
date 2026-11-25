@@ -14,7 +14,7 @@ import {
   getMicrosoftOauthAuthorizeUrl,
   requestMicrosoftToken,
 } from "@/utils/outlook/oauth";
-import { SCOPES } from "@/utils/outlook/scopes";
+import { MAILBOX_AUTH_SCOPES } from "@/utils/outlook/scopes";
 import { isInvalidGrantError, SafeError } from "@/utils/error";
 
 // Add buffer time to prevent token expiry during long-running operations
@@ -326,9 +326,8 @@ export function getLinkingOAuth2Url({
     client_id: env.MICROSOFT_CLIENT_ID,
     response_type: "code",
     redirect_uri: `${env.NEXT_PUBLIC_BASE_URL}/api/outlook/linking/callback`,
-    scope: SCOPES.join(" "),
-    // we can't use select_account because we need a new refresh token if the users is stale
-    prompt: "consent",
+    scope: MAILBOX_AUTH_SCOPES.join(" "),
+    ...(!loginHint && { prompt: "consent" }),
   });
 
   // Reconnects target one mailbox, so point Microsoft at it rather than letting

@@ -29,3 +29,14 @@ describe('Notes list order and date filters', () => {
     expect(visibleNotes(notes,{from:'2026-11-10T00:00'})).toEqual([]);
   });
 });
+
+it('never lists recovery records, including orphans during sync, while retaining their text',()=>{
+ const recovery={...notes[0],id:'recovery',title:'Alpha (recovered edit)',notes:'Unique recovered text',recoveredFrom:'temporarily-missing',noteOrder:-100};
+ const items=[recovery,...notes];
+ for(const sort of ['manual','created-desc','created-asc','edited-desc','edited-asc']){
+  expect(visibleNotes(items,{sort}).map(item=>item.id)).not.toContain('recovery');
+ }
+ expect(visibleNotes(items,{query:'recovered'})).toEqual([]);
+ expect(visibleNotes([recovery])).toEqual([]);
+ expect(moveNote(items,'c','a').find(item=>item.id==='recovery')?.notes).toBe('Unique recovered text');
+});

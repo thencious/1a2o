@@ -11,6 +11,7 @@ const {
   mockSetOAuthCodeResult,
   mockClearOAuthCode,
   mockGetToken,
+  mockGenerateAuthUrl,
   mockFetchGoogleOpenIdProfile,
   mockIsGoogleOauthEmulationEnabled,
   mockEnsureEmailAccountsWatched,
@@ -24,6 +25,7 @@ const {
   mockSetOAuthCodeResult: vi.fn(),
   mockClearOAuthCode: vi.fn(),
   mockGetToken: vi.fn(),
+  mockGenerateAuthUrl: vi.fn(() => "https://accounts.google.com/o/oauth2/auth"),
   mockFetchGoogleOpenIdProfile: vi.fn(),
   mockIsGoogleOauthEmulationEnabled: vi.fn(() => true),
   mockEnsureEmailAccountsWatched: vi.fn(),
@@ -89,6 +91,7 @@ vi.mock("@/utils/prisma-helpers", () => ({
 vi.mock("@/utils/gmail/client", () => ({
   getLinkingOAuth2Client: vi.fn(() => ({
     getToken: mockGetToken,
+    generateAuthUrl: mockGenerateAuthUrl,
   })),
 }));
 
@@ -162,6 +165,44 @@ describe("google linking callback route", () => {
     prisma.account.update.mockResolvedValue({
       id: "account-123",
     } as Awaited<ReturnType<typeof prisma.account.update>>);
+  });
+
+  it("retries with consent only if the browser session did not yield an offline grant", async () => {
+    mockValidateOAuthCallback.mockReturnValue({
+      success: true,
+      targetUserId: "user-123",
+      stateNonce: "state-nonce",
+      code: "valid-auth-code",
+      reconnectEmailAccountId: "mailbox-123",
+      forceConsent: false,
+    });
+    prisma.account.findUnique.mockResolvedValue({
+      id: "account-123",
+      userId: "user-123",
+      emailAccount: { id: "mailbox-123" },
+      refresh_token: null,
+    } as never);
+    mockHandleAccountLinking.mockResolvedValue({
+      type: "update_tokens",
+      existingAccountId: "account-123",
+    });
+    mockGetToken.mockResolvedValue({ tokens: { access_token: "access" } });
+
+    const response = await GET(
+      createRequest("http://localhost:3000/api/google/linking/callback"),
+    );
+    expect(response.headers.get("location")).toBe(
+      "https://accounts.google.com/o/oauth2/auth",
+    );
+    expect(mockGenerateAuthUrl).toHaveBeenCalledWith(
+      expect.objectContaining({
+        login_hint: "user@example.com",
+        prompt: "consent",
+        access_type: "offline",
+      }),
+    );
+    expect(response.cookies.get("google_linking_state")).toBeDefined();
+    expect(prisma.account.update).not.toHaveBeenCalled();
   });
 
   it.each([

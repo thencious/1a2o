@@ -19,10 +19,24 @@ const evidence = z.object({
 export function taskCalendarProposal(
   task: z.infer<typeof todoTask>,
   policy = taskPolicy(),
+  defaultTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone,
 ): CalendarProposal | null {
-  if (task.completedAt || task.aiState !== "success" || task.deadlineOverride)
-    return null;
-  const parsed = evidence.safeParse(task.aiEvidence);
+  const manual = task.deadlineOverride === true;
+  if (task.completedAt || (!manual && task.aiState !== "success")) return null;
+  const parsed = evidence.safeParse(
+    manual
+      ? {
+          arguments: {
+            calendar_kind: "deadline",
+            calendar_explicit_time: true,
+            calendar_title: task.title,
+            calendar_start_local: null,
+            calendar_end_local: null,
+          },
+          timeContext: { sender_timezone: defaultTimezone },
+        }
+      : task.aiEvidence,
+  );
   if (!parsed.success) return null;
   const args = parsed.data.arguments,
     timezone = parsed.data.timeContext.sender_timezone;

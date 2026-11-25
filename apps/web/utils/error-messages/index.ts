@@ -5,6 +5,7 @@ import { sendActionRequiredEmail } from "@inboxzero/transactional-email";
 import { env } from "@/env";
 import { createUnsubscribeToken } from "@/utils/unsubscribe";
 import type { Prisma } from "@/generated/prisma/client";
+import { ACCOUNT_DISCONNECTED_ERROR_TYPE } from "@/utils/config";
 
 // Used to store error messages for a user which we display in the UI
 
@@ -15,7 +16,7 @@ export const ErrorType = {
   AI_QUOTA_ERROR: "AI quota error",
   INSUFFICIENT_CREDITS: "Insufficient AI credits",
   TRIAL_AI_LIMIT_REACHED: "Trial AI limit reached",
-  ACCOUNT_DISCONNECTED: "Account disconnected",
+  ACCOUNT_DISCONNECTED: ACCOUNT_DISCONNECTED_ERROR_TYPE,
   EMAIL_WATCH_LAPSED: "Email automation stopped",
   // Legacy keys kept for clearing old stored errors
   INCORRECT_OPENAI_API_KEY: "Incorrect OpenAI API key",
@@ -46,6 +47,7 @@ export function watchLapsedErrorKey(emailAccountId: string): string {
 
 export async function getUserErrorMessages(
   userId: string,
+  options?: { skipMailboxMigration?: boolean },
 ): Promise<ErrorMessages | null> {
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -62,12 +64,15 @@ export async function getUserErrorMessages(
       data: { errorMessages: updatedErrorMessages },
     });
 
-    return Object.keys(updatedErrorMessages).length
-      ? addLegacyAccountRecoveryAction(userId, updatedErrorMessages)
-      : null;
+    if (!Object.keys(updatedErrorMessages).length) return null;
+    return options?.skipMailboxMigration
+      ? updatedErrorMessages
+      : addLegacyAccountRecoveryAction(userId, updatedErrorMessages);
   }
 
-  return addLegacyAccountRecoveryAction(userId, errorMessages);
+  return options?.skipMailboxMigration
+    ? errorMessages
+    : addLegacyAccountRecoveryAction(userId, errorMessages);
 }
 
 export function getAccountRecoveryAction(emailAccountId: string) {

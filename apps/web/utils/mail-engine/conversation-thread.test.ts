@@ -110,6 +110,34 @@ describe("conversationViewToThreadResponse", () => {
 });
 
 describe("requestMissingMessageContent", () => {
+  it("warms only the newest message and prioritizes it when loading a thread", () => {
+    const ensureMessageContent = vi
+      .fn()
+      .mockResolvedValue({ status: "scheduled" });
+    const missing = view({
+      messages: ["older", "newest"].map((messageId) => ({
+        ...message({ messageId }),
+        content: { status: "not_requested" },
+      })),
+    });
+
+    requestMissingMessageContent(
+      { ensureMessageContent },
+      missing,
+      new Set(),
+      true,
+    );
+    expect(
+      ensureMessageContent.mock.calls.map(([key]) => key.messageId),
+    ).toEqual(["newest"]);
+
+    ensureMessageContent.mockClear();
+    requestMissingMessageContent({ ensureMessageContent }, missing, new Set());
+    expect(
+      ensureMessageContent.mock.calls.map(([key]) => key.messageId),
+    ).toEqual(["newest", "older"]);
+  });
+
   it("requests each missing body once and retries one the engine rejected", async () => {
     const ensureMessageContent = vi
       .fn()

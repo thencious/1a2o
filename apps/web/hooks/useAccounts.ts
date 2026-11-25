@@ -5,12 +5,13 @@ import {
   fetchEmailAccounts,
 } from "@/utils/fetch-email-accounts";
 
-export function useAccounts(enabled = true) {
+export function useAccounts(enabled = true, watchConnection = false) {
   return useSWR<GetEmailAccountsResponse>(
     enabled ? EMAIL_ACCOUNTS_KEY : null,
     fetchEmailAccounts,
     {
-      revalidateOnFocus: false,
+      revalidateOnFocus: watchConnection,
+      refreshInterval: watchConnection ? 20_000 : 0,
     },
   );
 }

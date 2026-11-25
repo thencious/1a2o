@@ -13,6 +13,8 @@ export type TodoIntegration = {
   taskRules: TaskRule[];
   rulesRevision: string;
   defaultCalendar: CalendarTarget | null;
+  calendarMode?: "default" | "ask" | "off";
+  taskCalendars?: Record<string, CalendarTarget>;
   ntfyTopic: string;
   ntfyToken: string;
   timezone: string;

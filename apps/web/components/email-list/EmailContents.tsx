@@ -13,6 +13,7 @@ import {
   getPreparedEmailHtml,
   IMAGE_PROXY_BASE_URL,
   IMAGE_PROXY_ORIGIN,
+  needsEmailImageProxy,
   prepareSanitizedEmailHtml,
   sanitizeEmailHtml,
 } from "@/utils/email/prepare-html.client";
@@ -70,9 +71,29 @@ export function HtmlEmail({
     [inlineAttachments],
   );
   const [showReplies, setShowReplies] = useState(false);
-  const [renderHtml, setRenderHtml] = useState(() =>
-    getInitialRenderHtml({ messageId, sanitizedHtml }),
+  const [prepared, setPrepared] = useState<{
+    messageId: string;
+    sourceHtml: string;
+    html: string;
+  }>();
+  const needsProxy = needsEmailImageProxy(sanitizedHtml);
+  const cachedHtml = useMemo(
+    () => getPreparedEmailHtml({ messageId, sourceHtml: sanitizedHtml }),
+    [messageId, sanitizedHtml],
   );
+  const current =
+    prepared?.messageId === messageId && prepared.sourceHtml === sanitizedHtml
+      ? prepared
+      : undefined;
+  const readyHtml = current?.html ?? cachedHtml;
+  const renderHtml = useMemo(
+    () =>
+      current?.html ??
+      withLoadedInlineImages(messageId, cachedHtml ?? sanitizedHtml),
+    [current, messageId, cachedHtml, sanitizedHtml],
+  );
+  // Until signed image URLs arrive, the iframe CSP prevents direct requests.
+  const allowRemoteImages = !needsProxy || readyHtml !== undefined;
   const { resolvedTheme } = useTheme();
   const isDarkMode = resolvedTheme === "dark";
   const accountTheme = useMailAccountTheme(emailAccountId);
@@ -94,23 +115,23 @@ export function HtmlEmail({
   useEffect(() => {
     let cancelled = false;
     const controller = new AbortController();
-    const initialHtml = getInitialRenderHtml({ messageId, sanitizedHtml });
-    // A sent reply keeps its row when it syncs under a new id. Clearing the
-    // body while that id's html is prepared would blank the message.
-    if (initialHtml !== null) setRenderHtml(initialHtml);
-
+    const publish = (html: string) => {
+      if (cancelled) return;
+      startTransition(() =>
+        setPrepared({
+          messageId,
+          sourceHtml: sanitizedHtml,
+          html: withLoadedInlineImages(messageId, html),
+        }),
+      );
+    };
     const preparedHtml = prepareSanitizedEmailHtml({
       messageId,
       sourceHtml: sanitizedHtml,
     });
     // Inline images download separately so a slow attachment doesn't hold
     // back the body.
-    preparedHtml.then((html) => {
-      if (!cancelled)
-        startTransition(() =>
-          setRenderHtml(withLoadedInlineImages(messageId, html)),
-        );
-    });
+    if (needsEmailImageProxy(sanitizedHtml)) preparedHtml.then(publish);
     Promise.all([
       preparedHtml,
       loadInlineImageSources({
@@ -122,14 +143,10 @@ export function HtmlEmail({
       }),
     ]).then(
       ([rewrittenHtml, loadedNewImages]) => {
-        if (cancelled || !loadedNewImages) return;
-        startTransition(() =>
-          setRenderHtml(withLoadedInlineImages(messageId, rewrittenHtml)),
-        );
+        if (loadedNewImages) publish(rewrittenHtml);
       },
       () => {
-        if (cancelled) return;
-        startTransition(() => setRenderHtml(sanitizedHtml));
+        // The body is already readable even if its inline images fail.
       },
     );
 
@@ -140,7 +157,7 @@ export function HtmlEmail({
   }, [emailAccountId, inlineImageIds, messageId, sanitizedHtml]);
 
   const { mainContent, quotedContent, hasQuotedContent } = useMemo(
-    () => splitEmailContent(renderHtml ?? ""),
+    () => splitEmailContent(renderHtml),
     [renderHtml],
   );
   const applyDarkTheme = shouldApplyDarkMailTheme(mainContent, isDarkMode);
@@ -151,51 +168,66 @@ export function HtmlEmail({
 
   const documentKey = useMemo(
     () =>
-      getMailHtmlDocumentKey(mainContent, applyDarkTheme, darkBackgroundHsl),
-    [mainContent, applyDarkTheme, darkBackgroundHsl],
+      getMailHtmlDocumentKey(
+        allowRemoteImages ? mainContent : `blocked:${mainContent}`,
+        applyDarkTheme,
+        darkBackgroundHsl,
+      ),
+    [mainContent, applyDarkTheme, darkBackgroundHsl, allowRemoteImages],
   );
   const srcDoc = useMemo(
     () =>
       buildMailHtmlDocument({
         html: mainContent,
         isDarkMode: applyDarkTheme,
-        imageProxyBaseUrl: IMAGE_PROXY_BASE_URL,
-        imageProxyOrigin: IMAGE_PROXY_ORIGIN,
+        imageProxyBaseUrl: allowRemoteImages ? IMAGE_PROXY_BASE_URL : null,
+        imageProxyOrigin: allowRemoteImages ? IMAGE_PROXY_ORIGIN : null,
+        allowRemoteImages,
         documentKey,
         darkBackgroundHsl,
       }),
-    [mainContent, applyDarkTheme, documentKey, darkBackgroundHsl],
+    [
+      mainContent,
+      applyDarkTheme,
+      documentKey,
+      darkBackgroundHsl,
+      allowRemoteImages,
+    ],
   );
 
-  const quotedDocumentKey = useMemo(
-    () =>
-      getMailHtmlDocumentKey(
-        quotedContent,
-        applyQuotedDarkTheme,
-        darkBackgroundHsl,
-      ),
-    [quotedContent, applyQuotedDarkTheme, darkBackgroundHsl],
-  );
-  const quotedSrcDoc = useMemo(
-    () =>
-      buildMailHtmlDocument({
+  const quotedDocument = useMemo(() => {
+    if (!hasQuotedContent || !showReplies) return null;
+    const documentKey = getMailHtmlDocumentKey(
+      allowRemoteImages ? quotedContent : `blocked:${quotedContent}`,
+      applyQuotedDarkTheme,
+      darkBackgroundHsl,
+    );
+    return {
+      documentKey,
+      srcDoc: buildMailHtmlDocument({
         html: quotedContent,
         isDarkMode: applyQuotedDarkTheme,
-        imageProxyBaseUrl: IMAGE_PROXY_BASE_URL,
-        imageProxyOrigin: IMAGE_PROXY_ORIGIN,
-        documentKey: quotedDocumentKey,
+        imageProxyBaseUrl: allowRemoteImages ? IMAGE_PROXY_BASE_URL : null,
+        imageProxyOrigin: allowRemoteImages ? IMAGE_PROXY_ORIGIN : null,
+        allowRemoteImages,
+        documentKey,
         darkBackgroundHsl,
       }),
-    [quotedContent, applyQuotedDarkTheme, quotedDocumentKey, darkBackgroundHsl],
-  );
+    };
+  }, [
+    hasQuotedContent,
+    showReplies,
+    quotedContent,
+    applyQuotedDarkTheme,
+    darkBackgroundHsl,
+    allowRemoteImages,
+  ]);
   const callbacks = {
     onForwardMessage,
     onNavigateMessage,
     onReplyMessage,
     onFocusMessage,
   };
-
-  if (renderHtml === null) return <div data-email-ready="false" />;
 
   return (
     <div className="relative min-w-0 overflow-x-hidden">
@@ -218,10 +250,10 @@ export function HtmlEmail({
           <EllipsisIcon className="size-4" />
         </button>
       )}
-      {hasQuotedContent && showReplies && (
+      {quotedDocument && (
         <BufferedMailHtmlFrame
-          srcDoc={quotedSrcDoc}
-          documentKey={quotedDocumentKey}
+          srcDoc={quotedDocument.srcDoc}
+          documentKey={quotedDocument.documentKey}
           isDarkMode={applyQuotedDarkTheme}
           callbacks={callbacks}
         />
@@ -237,22 +269,6 @@ export function PlainEmail({ text }: { text: string }) {
   );
 
   return <MailPlainTextBody segments={segments} />;
-}
-
-// Showing the original html first would load remote images directly and then
-// reload them all through the proxy, so the body waits for the proxied html.
-function getInitialRenderHtml({
-  messageId,
-  sanitizedHtml,
-}: {
-  messageId: string;
-  sanitizedHtml: string;
-}) {
-  const preparedHtml = IMAGE_PROXY_BASE_URL
-    ? getPreparedEmailHtml({ messageId, sourceHtml: sanitizedHtml })
-    : sanitizedHtml;
-  if (preparedHtml === undefined) return null;
-  return withLoadedInlineImages(messageId, preparedHtml);
 }
 
 function withLoadedInlineImages(messageId: string, html: string) {

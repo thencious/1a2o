@@ -160,7 +160,7 @@ export function AgentsWorkspace() {
   return (
     <section
       aria-label="Agents workspace"
-      className="flex h-[calc(100dvh-2.25rem)] min-h-0 flex-col gap-3 p-3 lg:h-dvh"
+      className="flex min-h-0 flex-1 flex-col gap-3 p-3"
     >
       <header className="flex shrink-0 items-center gap-3">
         <h1 className="text-xl font-semibold">Agents</h1>

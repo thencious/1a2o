@@ -112,6 +112,7 @@ model User {
   apiKeys ApiKey[]
 
   emailAccounts EmailAccount[]
+  scheduledMessages ScheduledMessage[]
 
   // Referral relationships
   referralsMade    Referral[]        @relation("ReferrerUser")
@@ -136,6 +137,31 @@ enum SignupIntent {
   AI_ASSISTANT
   MAIL_CLIENT
   BOTH
+}
+
+enum ScheduledMessageStatus {
+  PENDING
+  SENDING
+  SUBMITTED
+  FAILED
+  CANCELED
+}
+
+model ScheduledMessage {
+  id            String                 @id
+  userId        String
+  user          User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chatId        String
+  text          String
+  sendAt        DateTime
+  nextAttemptAt DateTime
+  timezone      String
+  status        ScheduledMessageStatus @default(PENDING)
+  failure       String?
+  updatedAt     DateTime               @updatedAt
+
+  @@index([status, nextAttemptAt])
+  @@index([userId, chatId, sendAt])
 }
 
 enum ApiKeyScope {

@@ -186,44 +186,58 @@ describe("HtmlEmail", () => {
     );
   });
 
-  it("waits for proxied html instead of loading remote images directly", async () => {
+  it("shows text before proxying finishes and does not load remote images directly", async () => {
     const preparation = Promise.withResolvers<Response>();
     vi.mocked(fetch).mockReturnValue(preparation.promise);
-    const { container, findByTitle, queryByTitle } = render(
+    const { getByTitle, findByTitle } = render(
       <HtmlEmail
-        html='<img src="https://cdn.example.com/photo.png" />'
+        html='<p>Readable now</p><img src="https://cdn.example.com/photo.png" />'
         messageId="awaits-proxy"
       />,
     );
 
-    expect(queryByTitle("Email content preview")).toBeNull();
-    expect(
-      container.querySelector('[data-email-ready="false"]'),
-    ).not.toBeNull();
+    const initial = getByTitle("Email content preview") as HTMLIFrameElement;
+    expect(initial.srcdoc).toContain("Readable now");
+    expect(initial.srcdoc).toContain("img-src data:;");
+    measureEmailFrame(initial, 40);
 
-    await act(async () =>
+    await act(async () => {
       preparation.resolve(
         Response.json({
-          html: '<img src="https://app.example.com/api/image-proxy?u=photo" />',
+          html: '<p>Readable now</p><img src="https://app.example.com/api/image-proxy?u=photo" />',
         }),
-      ),
+      );
+    });
+    const next = (await findByTitle(
+      "Preparing email content preview",
+    )) as HTMLIFrameElement;
+    expect(next.srcdoc).toContain("/api/image-proxy?u=photo");
+    expect(next.srcdoc).not.toContain("https://cdn.example.com/photo.png");
+    measureEmailFrame(next, 80);
+    expect(getByTitle("Email content preview")).toBe(next);
+  });
+
+  it("opens HTML without remote assets without a proxy request", () => {
+    const { getByTitle } = render(
+      <HtmlEmail
+        html='<p>Hello <a href="https://example.com">link</a></p>'
+        messageId="no-asset"
+      />,
     );
-    const iframe = await findByTitle("Email content preview");
-    expect(iframe.getAttribute("srcdoc")).toContain("/api/image-proxy?u=photo");
-    expect(iframe.getAttribute("srcdoc")).not.toContain(
-      "https://cdn.example.com/photo.png",
-    );
-    expect(queryByTitle("Preparing email content preview")).toBeNull();
+    expect(
+      getByTitle("Email content preview").getAttribute("srcdoc"),
+    ).toContain("Hello");
+    expect(fetch).not.toHaveBeenCalled();
   });
 
   it("shows prepared html immediately when the email is reopened", async () => {
-    const html = "<p>Hello</p>";
+    const html = '<p>Hello</p><img src="https://cdn.example.com/photo.png">';
     vi.mocked(fetch).mockImplementation(async () =>
       Response.json({ html: "<p>proxied</p>" }),
     );
 
     const firstRender = render(<HtmlEmail html={html} messageId="message-1" />);
-    await firstRender.findByTitle("Email content preview");
+    await firstRender.findByTitle("Preparing email content preview");
     firstRender.unmount();
 
     const { getByTitle } = render(
@@ -277,7 +291,7 @@ describe("HtmlEmail", () => {
       />,
     );
 
-    const iframe = await findByTitle("Email content preview");
+    const iframe = await findByTitle("Preparing email content preview");
     expect(iframe.getAttribute("srcdoc")).toContain("img-src data: https:;");
   });
 
@@ -299,7 +313,7 @@ describe("HtmlEmail", () => {
       />,
     );
 
-    const iframe = await findByTitle("Email content preview");
+    const iframe = await findByTitle("Preparing email content preview");
     expect(iframe.getAttribute("srcdoc")).toContain(
       "img-src data: https://app.example.com;",
     );
@@ -359,7 +373,7 @@ describe("HtmlEmail", () => {
       />,
     );
     const iframe = (await findByTitle(
-      "Email content preview",
+      "Preparing email content preview",
     )) as HTMLIFrameElement;
     let contentHeight = 40;
 
@@ -589,7 +603,7 @@ describe("HtmlEmail", () => {
       />,
     );
 
-    const iframe = await findByTitle("Email content preview");
+    const iframe = await findInlineFrame(findByTitle, objectUrl);
     expect(iframe.getAttribute("srcdoc")).toContain(`src="${objectUrl}"`);
     expect(iframe.getAttribute("srcdoc")).toContain(
       "img-src data: blob: https:;",
@@ -646,12 +660,10 @@ describe("HtmlEmail", () => {
       />
     );
 
-    const { getByTitle, queryByTitle, rerender } = render(renderEmail());
-    await waitFor(() =>
-      expect(
-        getByTitle("Email content preview").getAttribute("srcdoc"),
-      ).toContain('src="blob:https://app.example.com/logo-1"'),
+    const { getByTitle, findByTitle, queryByTitle, rerender } = render(
+      renderEmail(),
     );
+    await findInlineFrame(findByTitle, "blob:https://app.example.com/logo-1");
     const visibleFrame = getByTitle("Email content preview");
 
     rerender(renderEmail());
@@ -684,14 +696,10 @@ describe("HtmlEmail", () => {
       />
     );
 
-    const { getByTitle, queryByTitle, rerender } = render(
+    const { getByTitle, findByTitle, queryByTitle, rerender } = render(
       renderEmail([inlineImageAttachment("badge@inboxzero.local")]),
     );
-    await waitFor(() =>
-      expect(
-        getByTitle("Email content preview").getAttribute("srcdoc"),
-      ).toContain(`src="${objectUrl}"`),
-    );
+    await findInlineFrame(findByTitle, objectUrl);
 
     rerender(renderEmail([]));
     await act(async () => {});
@@ -725,11 +733,7 @@ describe("HtmlEmail", () => {
     );
 
     const firstRender = render(renderEmail());
-    await waitFor(() =>
-      expect(
-        firstRender.getByTitle("Email content preview").getAttribute("srcdoc"),
-      ).toContain(`src="${objectUrl}"`),
-    );
+    await findInlineFrame(firstRender.findByTitle, objectUrl);
     firstRender.unmount();
 
     const { getByTitle } = render(renderEmail());
@@ -839,6 +843,18 @@ function addEmailDocumentMarker(
     existingMarker.remove();
   }
   targetDocument.head.append(marker.cloneNode());
+}
+
+async function findInlineFrame(
+  findByTitle: (title: string) => Promise<HTMLElement>,
+  objectUrl: string,
+) {
+  const frame = (await findByTitle(
+    "Preparing email content preview",
+  )) as HTMLIFrameElement;
+  await waitFor(() => expect(frame.srcdoc).toContain(`src="${objectUrl}"`));
+  measureEmailFrame(frame, 40);
+  return frame;
 }
 
 function measureEmailFrame(iframe: HTMLIFrameElement, height: number) {

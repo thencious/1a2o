@@ -107,6 +107,11 @@ describe("calendar OAuth callback helpers", () => {
         expected: "/acc_123/onboarding-brief?step=2",
       },
       {
+        name: "first-run account setup",
+        returnPath: encodeURIComponent("/accounts#calendars"),
+        expected: "/accounts#calendars",
+      },
+      {
         name: "different account return path",
         returnPath: encodeURIComponent("/acc_456/briefs"),
         expected: "/settings?calendarAccount=acc_123#calendar-settings",

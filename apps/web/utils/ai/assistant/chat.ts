@@ -1,4 +1,5 @@
-import type { JSONValue, ModelMessage } from "ai";
+import { tool, type JSONValue, type ModelMessage } from "ai";
+import { z } from "zod";
 import type { Logger } from "@/utils/logger";
 import type { MessageContext } from "@/utils/ai/assistant/chat-context-validation";
 import { stringifyEmail } from "@/utils/stringify-email";
@@ -55,7 +56,7 @@ import { zenroTools } from "./zenro-tools";
 
 export const maxDuration = 800;
 // Increment when chat prompts, tools, or routing change so run quality remains attributable.
-export const ASSISTANT_CHAT_PIPELINE_VERSION = 16;
+export const ASSISTANT_CHAT_PIPELINE_VERSION = 17;
 const ASSISTANT_CHAT_TOOL_BUDGET_MS = {
   web: 720_000,
   messaging: 60_000,
@@ -89,6 +90,7 @@ export async function aiProcessAssistantChat({
   responseSurface = "web",
   supportsInlineEmailCards = false,
   messagingPlatform,
+  messageCommand,
   onRulesStateExposed,
   onStepEnd,
   onModelResolved,
@@ -109,6 +111,11 @@ export async function aiProcessAssistantChat({
   responseSurface?: "web" | "messaging";
   supportsInlineEmailCards?: boolean;
   messagingPlatform?: MessagingPlatform;
+  messageCommand?: {
+    timezone: string;
+    schedule: (input: { text: string; localTime: string }) => Promise<unknown>;
+    continueInChat: (reply: string) => void;
+  };
   onRulesStateExposed?: (rulesRevision: number) => void;
   onStepEnd?: AssistantChatOnStepEnd;
   onModelResolved?: AssistantChatOnModelResolved;
@@ -134,7 +141,7 @@ export async function aiProcessAssistantChat({
   let ruleReadState: RuleReadState | null = null;
   const pendingRuleDeletionNames = new Set<string>();
   const memoryConversationMessages = conversationMessagesForMemory ?? messages;
-  const userTimezone = user.timezone || "UTC";
+  const userTimezone = messageCommand?.timezone || user.timezone || "UTC";
   const currentTimestamp = new Date().toISOString();
   let calendarConnection: CalendarConnectionStatus;
   try {
@@ -150,7 +157,7 @@ export async function aiProcessAssistantChat({
       message: describeCalendarLookupError(error),
     };
   }
-  const system = buildResolvedSystemPrompt({
+  const baseSystem = buildResolvedSystemPrompt({
     emailSendToolsEnabled,
     draftReplyActionsEnabled,
     webhookActionsEnabled,
@@ -162,6 +169,9 @@ export async function aiProcessAssistantChat({
     userTimezone,
     currentTimestamp,
   });
+  const system = messageCommand
+    ? `${baseSystem}\n\nThe user submitted a slash command from the selected Messages conversation. Treat it as a natural-language request and use the origin to resolve references like “here.” For future delivery in this conversation, use scheduleConversationMessage. Preserve the exact requested message, excluding timing instructions. Only claim a change if a tool confirms it. Finish clear commands and simple answers inline with a short plain-text result. Call continueInAssistantChat if the request needs a reply from the user or begins a discussion; include your first reply or specific question. Do not open Chat for a completed command that needs no follow-up.`
+    : baseSystem;
   const toolOptions = {
     email: user.email,
     emailAccountId,
@@ -284,6 +294,41 @@ export async function aiProcessAssistantChat({
   );
 
   const allTools = {
+    ...(messageCommand
+      ? {
+          scheduleConversationMessage: tool({
+            description:
+              "Queue an explicitly requested future message in the Messages conversation that invoked the command, using its selected sending app. Resolve the requested time against the user's stated current timestamp and timezone. Ask if timing or content is unclear. This does not send immediately.",
+            inputSchema: z.object({
+              text: z
+                .string()
+                .max(20_000)
+                .refine((value) => !!value.trim())
+                .describe(
+                  "Exact message content to send, without its scheduling instructions.",
+                ),
+              localTime: z
+                .string()
+                .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/)
+                .describe(
+                  "Future local time as YYYY-MM-DDTHH:mm, in the invoking device's timezone.",
+                ),
+            }),
+            execute: messageCommand.schedule,
+          }),
+          continueInAssistantChat: tool({
+            description:
+              "Open the assistant conversation when a Messages command needs clarification, the user requests a discussion, or a multi-turn reply is appropriate. Clear completed commands stay in Messages.",
+            inputSchema: z.object({
+              reply: z.string().trim().min(1).max(8000),
+            }),
+            execute: ({ reply }) => {
+              messageCommand.continueInChat(reply);
+              return { continued: true };
+            },
+          }),
+        }
+      : {}),
     ...zenroTools(user.userId, logger),
     getAssistantCapabilities: getAssistantCapabilitiesTool(toolOptions),
     getAccountOverview: getAccountOverviewTool(toolOptions),

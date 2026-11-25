@@ -14,20 +14,21 @@ export async function getTodoPreferences(userId: string) {
     policy = taskPolicy(state.taskRules);
   return {
     defaultCalendar: state.defaultCalendar,
+    calendarMode:
+      state.calendarMode ?? (state.defaultCalendar ? "default" : null),
     policy: taskPolicy(state.taskRules),
     ntfyTopic: state.ntfyTopic,
     ntfyTokenConfigured: Boolean(state.ntfyToken),
     timezone: state.timezone,
     ntfyStatus: state.ntfyStatus,
-    pending: state.defaultCalendar
-      ? Object.values(state.pending).filter((prompt) => {
-          const task = tasks.find((item) => item.id === prompt.taskId);
-          return (
-            task &&
-            taskCalendarProposal(task, policy)?.hash === prompt.proposal.hash
-          );
-        })
-      : [],
+    pending: Object.values(state.pending).filter((prompt) => {
+      const task = tasks.find((item) => item.id === prompt.taskId);
+      return (
+        task &&
+        taskCalendarProposal(task, policy, state.timezone)?.hash ===
+          prompt.proposal.hash
+      );
+    }),
   };
 }
 export async function saveTodoPreferences(
@@ -45,6 +46,8 @@ export async function saveTodoPreferences(
   return updateTodoIntegration(userId, async (state) => {
     if (input.defaultCalendar !== undefined)
       state.defaultCalendar = input.defaultCalendar;
+    if (input.calendarMode !== undefined)
+      state.calendarMode = input.calendarMode;
     if (input.ntfyTopic !== undefined) {
       const topic = input.ntfyTopic.replace(/\/$/, "");
       if (topic !== state.ntfyTopic) state.ntfyToken = "";

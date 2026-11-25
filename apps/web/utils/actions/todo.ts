@@ -45,7 +45,13 @@ export const syncTodoCalendarAction = actionClientUser
   .metadata({ name: "syncTodoCalendar" })
   .inputSchema(todoCalendarTask)
   .action(async ({ ctx: { userId, logger }, parsedInput }) =>
-    syncTodoCalendar(userId, parsedInput.taskId, logger),
+    syncTodoCalendar(
+      userId,
+      parsedInput.taskId,
+      logger,
+      undefined,
+      parsedInput.target,
+    ),
   );
 export const resolveTodoCalendarAction = actionClientUser
   .metadata({ name: "resolveTodoCalendar" })

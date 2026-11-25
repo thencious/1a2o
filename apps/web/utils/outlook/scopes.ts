@@ -30,3 +30,7 @@ export const CALENDAR_SCOPES = [
   "Calendars.Read", // Read user calendars
   "Calendars.ReadWrite", // Read and write user calendars
 ] as const;
+
+export const MAILBOX_AUTH_SCOPES = [
+  ...new Set([...SCOPES, ...CALENDAR_SCOPES]),
+];

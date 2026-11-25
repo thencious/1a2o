@@ -8,19 +8,17 @@
 
 ## First server installation
 
-Follow [LOCAL-SETUP.md](../LOCAL-SETUP.md) for the supported prerequisites, database/cache configuration and launch commands. These are self-hosting instructions, not a claim of a managed hosted service.
+The host administrator follows [LOCAL-SETUP.md](../LOCAL-SETUP.md) once to provision the backend, configure Google or Microsoft OAuth and enable the provider APIs. Configure optional host services such as Beeper Desktop and OpenRouter here too. Keep API keys on the host.
 
-Connect features in this order:
+## Connect your accounts
 
-1. **Connect one mailbox.** Choose Gmail or Outlook. The server administrator configures an OAuth app once; each user then signs in through their provider. For Google apps still in testing, add your account as a test user and enable the required Gmail/Calendar APIs. Use the exact callback URLs shown in the setup guide.
-2. **Check Mail.** All inboxes is the default. Additional accounts can be connected from Settings. Let initial history synchronization finish; the UI can display cached results during later refreshes.
-3. **Start Tasks and Notes.** Create a sample item and edit it. Local saves happen first. Cloud backup/sync status and recovery are covered in [SYNC.md](SYNC.md); retain a recovery export separately from the host computer.
-4. **Connect calendars.** Settings contains calendar access, editing permissions, visibility and the default calendar. Authorize writing only if you want to edit or create events. A read-only calendar cannot make its originals editable merely by changing the app's controls.
-5. **Add messaging, if wanted.** Install Beeper Desktop on the backend host, connect networks there, then approve this app's local API connection. Each platform controls which operations, contacts and receipts its bridge exposes. Keep the Beeper recovery material private and retain it outside this repository.
-6. **Enable AI, if wanted.** Add your own OpenRouter key to private server configuration and choose limits matching your account. No API key is baked into Android. ChatGPT sign-in affects Chat; classification remains on the configured OpenRouter provider.
-7. **Pair Android.** Open Settings > Android. For a local Windows backend, both devices should use the same trusted Wi-Fi initially. The QR/code is private, short-lived and single-use. Revoke a lost device from the same Settings section.
+1. **Sign in with Gmail or Outlook.** Your first mailbox opens the account setup screen.
+2. **Connect your other accounts.** Each Google or Microsoft approval covers mail and calendar access for that account. Approve contacts access in the same prompt to import its address book when contacts are enabled. You can also connect LinkedIn or, on a host configured for Messages, approve 1a2o in Beeper Desktop and paste its access token. You can skip optional connections and add them later.
+3. **Open All inboxes.** Mail synchronization starts in the background. Connected calendars and contacts appear in their respective tabs as they sync. Tasks and Notes save locally from the first edit.
 
-These integrations are optional except the initial account used by the existing web application's sign-in flow. A disabled integration should be treated as unconnected, not as a reason to paste unrelated credentials into it.
+To move Tasks and Notes across devices, configure [encrypted sync](SYNC.md). To use ChatGPT in Chat, sign in from the Chat tab. Background AI uses the host's configured provider.
+
+App changes should apply to fresh installations through shared code and defaults. Account authorization is part of onboarding. Settings and data specific to an existing installation stay with that installation.
 
 ## On a phone or tablet
 

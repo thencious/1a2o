@@ -133,16 +133,17 @@ export function BulkActions({
       emailCount: items.reduce((sum, item) => sum + item.value, 0),
     });
   }, []);
-  const { onBulkUnsubscribe } = useBulkUnsubscribe<Newsletter>({
-    hasUnsubscribeAccess,
-    mutate,
-    posthog,
-    refetchPremium,
-    emailAccountId,
-    onDeselectItem: deselectItem,
-    filter,
-    onSuccess: onBulkUnsubscribeSuccess,
-  });
+  const { onBulkUnsubscribe, failedUnsubscribes, clearUnsubscribeFailures } =
+    useBulkUnsubscribe<Newsletter>({
+      hasUnsubscribeAccess,
+      mutate,
+      posthog,
+      refetchPremium,
+      emailAccountId,
+      onDeselectItem: deselectItem,
+      filter,
+      onSuccess: onBulkUnsubscribeSuccess,
+    });
 
   const { onBulkApprove } = useBulkApprove({
     mutate,
@@ -307,6 +308,46 @@ export function BulkActions({
         )}
       </AnimatePresence>
 
+      <Dialog
+        open={failedUnsubscribes.length > 0}
+        onOpenChange={(open) => {
+          if (!open) clearUnsubscribeFailures();
+        }}
+      >
+        <DialogContent className="max-h-[80dvh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Unsubscribe needs attention</DialogTitle>
+            <DialogDescription>
+              These senders were not confirmed as unsubscribed. Your selection
+              is preserved.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            {failedUnsubscribes.map((failure, index) => (
+              <div
+                key={`${failure.sender}:${index}`}
+                className="rounded-md border p-3 text-sm"
+              >
+                <div className="break-all font-medium">{failure.sender}</div>
+                <p className="mt-1 text-muted-foreground">{failure.message}</p>
+                {failure.url && (
+                  <a
+                    href={failure.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-2 inline-block underline"
+                  >
+                    Open unsubscribe page
+                  </a>
+                )}
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button onClick={clearUnsubscribeFailures}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       {/* Delete Confirmation Dialog */}
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <DialogContent>

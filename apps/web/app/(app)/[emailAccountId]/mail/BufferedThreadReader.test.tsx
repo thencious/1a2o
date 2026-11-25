@@ -46,14 +46,14 @@ describe("BufferedThreadReader", () => {
         {reader("one", "First thread", false)}
       </BufferedThreadReader>,
     );
-    act(() => vi.advanceTimersByTime(1500));
+    act(() => vi.advanceTimersByTime(100));
     rerender(
       <BufferedThreadReader threadKey="one" dataReady onReady={onReady}>
         {reader("one", "First thread", false)}
       </BufferedThreadReader>,
     );
     expect(onReady).not.toHaveBeenCalled();
-    act(() => vi.advanceTimersByTime(500));
+    act(() => vi.advanceTimersByTime(50));
     expect(
       screen.getByText("First thread").closest("[aria-hidden]"),
     ).toBeNull();
@@ -77,7 +77,7 @@ describe("BufferedThreadReader", () => {
     expect(screen.getByText("First thread")).toBeTruthy();
 
     act(() => {
-      vi.advanceTimersByTime(2000);
+      vi.advanceTimersByTime(150);
     });
 
     expect(screen.queryByText("First thread")).toBeNull();
@@ -99,7 +99,7 @@ describe("BufferedThreadReader", () => {
       </BufferedThreadReader>,
     );
     act(() => {
-      vi.advanceTimersByTime(500);
+      vi.advanceTimersByTime(50);
     });
     expect(screen.getByText("First thread")).toBeTruthy();
 

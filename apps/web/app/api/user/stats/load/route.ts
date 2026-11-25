@@ -34,6 +34,7 @@ export const POST = withEmailProvider("user/stats/load", async (request) => {
         emailProvider: request.emailProvider,
         logger: request.logger,
         pageToken,
+        maxPages: 1,
       }),
     );
   }

@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { withAuth } from "@/utils/middleware";
 import { getLinkingOAuth2Url } from "@/utils/outlook/client";
 import { OUTLOOK_LINKING_STATE_COOKIE_NAME } from "@/utils/outlook/constants";
-import { SCOPES as OUTLOOK_SCOPES } from "@/utils/outlook/scopes";
+import { MAILBOX_AUTH_SCOPES as OUTLOOK_SCOPES } from "@/utils/outlook/scopes";
 import {
   getMailboxLinkingBlockedResponse,
   hasActiveAccountLinkingUser,

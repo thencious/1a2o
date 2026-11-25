@@ -23,6 +23,7 @@ import {
 import { CALENDAR_STATE_COOKIE_NAME } from "./constants";
 import { calendarSettingsPath } from "./settings-path";
 import { CalendarEditingPermissionError } from "./editing-permission";
+import { FIRST_RUN_CALENDAR_RETURN_PATH } from "@/utils/config";
 
 /**
  * Unified handler for calendar OAuth callbacks
@@ -34,6 +35,7 @@ export async function handleCalendarCallback(
 ): Promise<NextResponse> {
   let redirectHeaders = new Headers();
   let settingsAccountId: string | undefined;
+  let onboardingRedirectUrl: URL | undefined;
 
   try {
     // Step 1: Validate OAuth callback parameters
@@ -44,6 +46,11 @@ export async function handleCalendarCallback(
       redirectUrl: finalRedirectUrl,
     } = await validateOAuthCallback(request, logger);
     redirectHeaders = response.headers;
+    if (
+      `${finalRedirectUrl.pathname}${finalRedirectUrl.hash}` ===
+      FIRST_RUN_CALENDAR_RETURN_PATH
+    )
+      onboardingRedirectUrl = finalRedirectUrl;
 
     // Step 1.5: Check for duplicate OAuth code processing
     const cachedResult = await getOAuthCodeResult(code);
@@ -175,10 +182,12 @@ export async function handleCalendarCallback(
     // Handle all other errors
     logger.error("Error in calendar callback", { error });
 
-    const errorRedirectUrl = new URL(
-      calendarSettingsPath(settingsAccountId),
-      env.NEXT_PUBLIC_BASE_URL,
-    );
+    const errorRedirectUrl =
+      onboardingRedirectUrl ??
+      new URL(
+        calendarSettingsPath(settingsAccountId),
+        env.NEXT_PUBLIC_BASE_URL,
+      );
     return redirectWithError(
       errorRedirectUrl,
       error instanceof CalendarEditingPermissionError

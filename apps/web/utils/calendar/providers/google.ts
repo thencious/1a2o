@@ -105,10 +105,6 @@ export function createGoogleCalendarProvider(
         await autoPopulateTimezone(emailAccountId, googleCalendars, logger);
       } catch (error) {
         logger.error("Error syncing calendars", { error, connectionId });
-        await prisma.calendarConnection.update({
-          where: { id: connectionId },
-          data: { isConnected: false },
-        });
         throw error;
       }
     },

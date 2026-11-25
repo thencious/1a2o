@@ -42,7 +42,7 @@ type ConnectionStatus = {
 export function LinkedInContactsConnection({
   onChange,
 }: {
-  onChange: () => Promise<unknown>;
+  onChange?: () => Promise<unknown>;
 }) {
   const [open, setOpen] = useState(false);
   const { data, error, mutate } = useSWR<ConnectionStatus>(
@@ -59,14 +59,14 @@ export function LinkedInContactsConnection({
   const [failure, setFailure] = useState("");
   const revision = useRef<string | null>(null);
   const currentRevision = data
-    ? `${data.connected}:${data.lastSyncAt}:${data.importedSoFar}`
+    ? `${data.connected}:${data.requiresReconnect}:${data.lastSyncAt}:${data.importedSoFar}`
     : null;
   useEffect(() => {
     if (currentRevision === null || currentRevision === revision.current)
       return;
     const previous = revision.current;
     revision.current = currentRevision;
-    if (previous !== null) onChange();
+    if (previous !== null) onChange?.();
   }, [currentRevision, onChange]);
   const signingIn =
     data?.signIn &&
@@ -86,7 +86,7 @@ export function LinkedInContactsConnection({
               : await disconnectLinkedInContactsAction();
       if (!result?.data) throw new Error(getActionErrorMessage(result ?? {}));
       await mutate();
-      await onChange();
+      await onChange?.();
     } catch (error) {
       setFailure(
         error instanceof Error
@@ -109,7 +109,7 @@ export function LinkedInContactsConnection({
             setOpen(true);
           }}
         >
-          Sync
+          {data?.requiresReconnect ? "Reconnect" : "Sync"}
         </a>
       </DialogTrigger>
       <DialogContent className="max-w-md">

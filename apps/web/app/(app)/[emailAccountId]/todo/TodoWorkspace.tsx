@@ -154,7 +154,7 @@ export function TodoWorkspace({
   return (
     <section
       aria-label={workspace === "notes" ? "Notes" : "Tasks"}
-      className="flex h-[calc(100dvh-2.25rem)] min-h-0 overflow-hidden bg-background lg:h-dvh"
+      className="flex min-h-0 flex-1 overflow-hidden bg-background"
     >
       <iframe
         ref={frame}

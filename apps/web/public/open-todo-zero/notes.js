@@ -1,16 +1,22 @@
-import { noteTitle, noteDocument, taskFromNote } from "./workspace-data.mjs";
+import {
+  noteTitle,
+  noteDocument,
+  taskFromNote,
+  consolidateRecoveryCopies,
+} from "./workspace-data.mjs";
 import {
   compactNoteTimestamp,
   manualNotes,
   moveNote,
   noteTimestamp,
   visibleNotes,
-} from "./notes-list.mjs?v=4";
+} from "./notes-list.mjs?v=5";
 
 const $ = (id) => document.getElementById(id);
 const host = window.InboxTodoHost;
-let notes = host.initial(),
-  selected = manualNotes(notes)[0]?.id ?? null,
+const initialNotes = host.initial();
+let notes = consolidateRecoveryCopies(initialNotes),
+  selected = manualNotes(notes).find((note) => !note.recoveredFrom)?.id ?? null,
   loading = false,
   pendingTask = null;
 const converting = new Set();
@@ -65,13 +71,15 @@ function reorder(id, targetId, after) {
   render();
 }
 const editor = new (window.WorkspaceEditor || toastui.Editor)({
-  documents: () => notes,
+  documents: () => notes.filter((note) => !note.recoveredFrom),
   openDocument: (id) => open(id),
   el: $("editor-mount"),
   height: "100%",
   minHeight: "200px",
   initialValue: "",
-  initialEditType: "wysiwyg",
+  // The rich-text fallback serializes literal list markers as escaped text.
+  // Keep the original Markdown if the live preview editor fails to load.
+  initialEditType: "markdown",
   previewStyle: "tab",
   hideModeSwitch: true,
   autofocus: false,
@@ -86,6 +94,8 @@ const editor = new (window.WorkspaceEditor || toastui.Editor)({
   linkAttributes: { target: "_blank", rel: "noopener noreferrer" },
   customHTMLSanitizer: (html) => DOMPurify.sanitize(html),
 });
+const hasLivePreview = Boolean($("editor-mount").querySelector(".cm-editor"));
+$("source-toggle").hidden = !hasLivePreview;
 $("editor-mount")
   .querySelector(".toastui-editor-defaultUI-toolbar")
   .append($("note-editor-actions"));
@@ -115,7 +125,7 @@ $("editor-mount")
     element.setAttribute("aria-multiline", "true");
   });
 function current() {
-  return notes.find((note) => note.id === selected);
+  return notes.find((note) => note.id === selected && !note.recoveredFrom);
 }
 function notice(text) {
   clearTimeout(noticeTimer);
@@ -261,14 +271,16 @@ function render() {
   if (!items.length) {
     const empty = document.createElement("p");
     empty.className = "notes-list-empty";
-    empty.textContent = notes.length
+    empty.textContent = notes.some((note) => !note.recoveredFrom)
       ? "No notes match these filters."
       : "Create a note to start writing.";
     $("note-list").append(empty);
   }
 }
 function open(id) {
-  selected = id;
+  selected = notes.some((note) => note.id === id && !note.recoveredFrom)
+    ? id
+    : null;
   const note = current();
   $("detail-empty").hidden = !!note;
   $("detail-content").hidden = !note;
@@ -276,7 +288,7 @@ function open(id) {
   if (!note) return;
   loading = true;
   if (note.notes.trim()) editor.setMarkdown(noteDocument(note.notes), false);
-  else editor.setHTML("<h1><br></h1>", false);
+  else editor.setMarkdown("# ", false);
   loading = false;
   count();
   updateButton();
@@ -306,7 +318,66 @@ $("editor-mount").addEventListener(
   },
   true,
 );
+const historyButton = document.createElement("button");
+historyButton.type = "button";
+historyButton.title = "Version history";
+historyButton.setAttribute("aria-label", "Version history");
+historyButton.innerHTML =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11a9 9 0 1 1 2.6 7M3 4v7h7M12 7v5l3 2"/></svg>';
+$("note-editor-actions").prepend(historyButton);
+historyButton.onclick = () => {
+  const note = current();
+  if (!note?.recoveredVersions?.length) return;
+  const dialog = document.createElement("dialog");
+  dialog.className = "note-version-history";
+  const heading = document.createElement("h3");
+  heading.textContent = "Version history";
+  const close = document.createElement("button");
+  close.textContent = "Close";
+  close.onclick = () => dialog.close();
+  dialog.append(heading, close);
+  for (const version of note.recoveredVersions) {
+    const row = document.createElement("section");
+    const date = document.createElement("div");
+    date.textContent = new Date(
+      version.updatedAt || version.createdAt || 0,
+    ).toLocaleString();
+    const preview = document.createElement("pre");
+    preview.textContent = version.notes || version.title || "";
+    const restore = document.createElement("button");
+    restore.textContent = "Restore";
+    restore.onclick = () => {
+      const live = notes.find((item) => item.id === note.id);
+      if (!live) return dialog.close();
+      const { recoveredVersions, ...snapshot } = live;
+      live.recoveredVersions = [...(recoveredVersions || []), snapshot];
+      live.notes = version.notes || "";
+      live.title = noteTitle(live.notes);
+      live.updatedAt = Date.now();
+      notes = consolidateRecoveryCopies(notes);
+      save();
+      open(live.id);
+      dialog.close();
+    };
+    row.append(date, preview, restore);
+    dialog.append(row);
+  }
+  dialog.addEventListener("close", () => dialog.remove(), { once: true });
+  dialog.onclick = (event) => {
+    if (
+      event.target === dialog &&
+      (event.clientX < dialog.getBoundingClientRect().left ||
+        event.clientX > dialog.getBoundingClientRect().right ||
+        event.clientY < dialog.getBoundingClientRect().top ||
+        event.clientY > dialog.getBoundingClientRect().bottom)
+    )
+      dialog.close();
+  };
+  document.body.append(dialog);
+  dialog.showModal();
+};
 function updateButton() {
+  historyButton.hidden = !current()?.recoveredVersions?.length;
   const button = $("add-to-tasks"),
     busy = converting.has(selected);
   button.disabled = busy;
@@ -378,7 +449,7 @@ $("delete-note").onclick = () => {
   if (!note) return;
   notes = notes.filter((item) => item.id !== note.id);
   save();
-  open(notes[0]?.id ?? null);
+  open(manualNotes(notes).find((note) => !note.recoveredFrom)?.id ?? null);
   notice("Note deleted.");
   const undo = document.createElement("button");
   undo.textContent = " Undo";
@@ -496,10 +567,12 @@ $("confirm-task-time").onclick = async () => {
 };
 window.addEventListener("zenro-notes-merge", (event) => {
   const previous = current();
-  notes = event.detail;
+  notes = consolidateRecoveryCopies(event.detail);
   render();
+  updateButton();
   const next = current();
-  if (!next) open(notes[0]?.id ?? null);
+  if (!next)
+    open(manualNotes(notes).find((note) => !note.recoveredFrom)?.id ?? null);
   else if (previous?.notes !== next.notes) open(next.id);
 });
 document.addEventListener("keydown", (event) => {
@@ -518,4 +591,5 @@ document.addEventListener("keydown", (event) => {
     location.origin,
   );
 });
+if (JSON.stringify(notes) !== JSON.stringify(initialNotes)) save();
 open(selected);

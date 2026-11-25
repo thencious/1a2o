@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ConversationView } from "@inboxzero/mail-core/ports/mail-store";
 import type { QuerySnapshot } from "@inboxzero/mail-core/queries";
 import { useThread } from "./useThread";
@@ -69,6 +69,7 @@ describe("useThread", () => {
     mail.client.ensureMessageContent.mockResolvedValue({ status: "scheduled" });
     mail.client.requestSync.mockResolvedValue({ status: "scheduled" });
   });
+  afterEach(() => vi.unstubAllGlobals());
 
   it("projects an engine conversation onto the reader thread", async () => {
     const snapshot = readySnapshot(view());
@@ -103,6 +104,105 @@ describe("useThread", () => {
       accountId: "account",
       messageId: "m-1",
     });
+  });
+
+  it("opens a missing body directly while the local download is still queued", async () => {
+    const local = view({
+      key: { accountId: "secondary", conversationId: "cold-body" },
+      messages: [message({ content: { status: "not_requested" } })],
+    });
+    mail.client.observeConversation.mockReturnValue(
+      handle(readySnapshot(local)),
+    );
+    const fetch = vi.fn(async () =>
+      Response.json({
+        thread: {
+          id: "cold-body",
+          messages: [
+            {
+              id: "m-1",
+              subject: "Provider metadata",
+              textHtml: "<p>Available now</p>",
+              inline: [],
+            },
+          ],
+        },
+      }),
+    );
+    vi.stubGlobal("fetch", fetch);
+    const { result } = renderHook(() =>
+      useThread(
+        { id: "cold-body", emailAccountId: "secondary" },
+        { foreground: true },
+      ),
+    );
+
+    await waitFor(() =>
+      expect(result.current.data?.thread.messages[0]).toMatchObject({
+        subject: "Hello",
+        textHtml: "<p>Available now</p>",
+      }),
+    );
+    expect(result.current.localAvailability?.missingBodyIds.size).toBe(0);
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/threads/cold-body",
+      expect.objectContaining({
+        headers: { "X-Email-Account-ID": "secondary" },
+      }),
+    );
+  });
+
+  it("opens a conversation missing from the local store while preserving account scope", async () => {
+    mail.client.observeConversation.mockImplementation((key) =>
+      handle(readySnapshot(view({ key, messages: [] }))),
+    );
+    let releaseFirst!: (response: Response) => void;
+    const fetch = vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise<Response>((resolve) => {
+            releaseFirst = resolve;
+          }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          thread: {
+            id: "cold-link",
+            messages: [
+              { id: "account-two-message", textPlain: "Second account" },
+            ],
+          },
+        }),
+      );
+    vi.stubGlobal("fetch", fetch);
+    const { result, rerender } = renderHook(
+      ({ emailAccountId }) =>
+        useThread({ id: "cold-link", emailAccountId }, { foreground: true }),
+      { initialProps: { emailAccountId: "first" } },
+    );
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(1));
+    rerender({ emailAccountId: "second" });
+    await waitFor(() =>
+      expect(result.current.data?.thread.messages[0]?.textPlain).toBe(
+        "Second account",
+      ),
+    );
+    await act(async () => {
+      releaseFirst(
+        Response.json({
+          thread: {
+            id: "cold-link",
+            messages: [
+              { id: "account-one-message", textPlain: "First account" },
+            ],
+          },
+        }),
+      );
+    });
+    expect(result.current.data?.thread.messages[0]?.textPlain).toBe(
+      "Second account",
+    );
   });
 
   it("never publishes the previous conversation after switching readers", async () => {

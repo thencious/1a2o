@@ -11,8 +11,10 @@ const output = resolve(root, ".context/qa/autosave-races");
 mkdirSync(output, { recursive: true });
 const browser = await chromium.launch({ channel: "msedge", headless: true });
 try {
-  for (const [workspace, scenario] of [["notes", "save-snapshot"], ["notes", "stale-refresh"], ["tasks", "stale-refresh"]]) {
+  for (const [workspace, scenario] of [["notes", "save-snapshot"], ["notes", "stale-refresh"], ["notes", "recovery-visibility"], ["tasks", "stale-refresh"]]) {
     let remote = { revision: "base", tasks: [{ id: "item", title: "Autosave fixture", confirmedTitle: "Autosave fixture", createdAt: Date.now(), notes: "# Autosave fixture\n\nInitial text", priority: "important", completedAt: null, aiState: "success" }] };
+    if(workspace==='notes') remote.tasks[0].recoveredVersions=[{...remote.tasks[0],notes:'# Autosave fixture\n\nRecovered text',updatedAt:1}];
+    if(scenario==='recovery-visibility') remote.tasks.unshift({...remote.tasks[0],id:'orphan-recovery',title:'Autosave fixture (recovered edit)',notes:'Unique orphan content',recoveredFrom:'temporarily-missing',recoveredVersions:[]});
     let holdNext = false, release, revisionNumber = 0;
     const context = await browser.newContext({ viewport: { width: 1280, height: 850 }, colorScheme: "dark" });
     const page = await context.newPage();
@@ -43,6 +45,12 @@ try {
     if (workspace === "tasks") await frame.getByRole("button", { name: "Autosave fixture", exact: true }).click();
     const editor = frame.locator(".cm-content");
     await editor.waitFor();
+    if(workspace==='notes') {
+      await frame.getByRole('button',{name:'Version history',exact:true}).click();
+      await expect(frame.locator('dialog')).toContainText('Recovered text');
+      await page.screenshot({path:resolve(output,`notes-history-${scenario}.png`)});
+      await frame.getByRole('button',{name:'Close',exact:true}).click();
+    }
     const storageKey = workspace === "notes" ? "zenro.notes.v1" : "still.tasks.v1";
     const baselineKey = workspace === "notes" ? "zenro.notes.baseline" : "zenro.tasks.saved-baseline";
     const revisionKey = workspace === "notes" ? "zenro.notes.revision" : "open-inbox-zero.todo.revision";
@@ -70,6 +78,27 @@ try {
       assert.equal(baseline[0].notes, sent.input.tasks[0].notes, "A save acknowledgement must only acknowledge the text actually sent");
       assert(!baseline[0].notes.includes("second"));
       await acknowledge(1);
+    } else if (scenario === 'recovery-visibility') {
+      await expect(frame.locator('.note-row')).toHaveCount(1);
+      await child.evaluate(() => {
+        window.recoveryRowsSeen=[];
+        window.recoveryObserver=new MutationObserver(records => {
+          for(const record of records) for(const node of record.addedNodes) {
+            if(node.nodeType===1 && (node.dataset?.noteId==='orphan-recovery' || node.textContent.includes('(recovered edit)'))) window.recoveryRowsSeen.push(node.textContent);
+          }
+        });
+        window.recoveryObserver.observe(document.getElementById('note-list'),{childList:true,subtree:true});
+      });
+      for(let i=0;i<12;i++) {
+        await append(' typing '+i);
+        await child.evaluate(() => {
+          const items=JSON.parse(localStorage.getItem('zenro.notes.v1'));
+          window.dispatchEvent(new CustomEvent('zenro-notes-merge',{detail:items}));
+        });
+      }
+      await expect(frame.locator('.note-row')).toHaveCount(1);
+      assert.deepEqual(await child.evaluate(()=>window.recoveryRowsSeen),[], 'Recovery records must never enter the DOM, even for one render during typing');
+      assert((await child.evaluate(()=>localStorage.getItem('zenro.notes.v1'))).includes('Unique orphan content'), 'Hidden recovery text must remain preserved');
     } else {
       holdNext = true;
       await child.evaluate(() => window.dispatchEvent(new Event("focus")));
@@ -81,12 +110,21 @@ try {
       const stored = await child.evaluate(key => JSON.parse(localStorage.getItem(key)), storageKey);
       assert(stored[0].notes.includes("newest typing"), "A delayed older refresh must never roll back an acknowledged edit");
     }
+    if(workspace === 'notes' && scenario === 'save-snapshot') {
+      await frame.getByRole('button',{name:'Version history',exact:true}).click();
+      await frame.getByRole('button',{name:'Restore',exact:true}).click();
+      await expect(editor).toContainText('Recovered text');
+      const restored = await child.evaluate(key => JSON.parse(localStorage.getItem(key)), storageKey);
+      assert.equal(restored.length,1);
+      assert(restored[0].recoveredVersions.some(version => version.notes.includes('second')), 'Restoring must preserve the current edited text in history');
+    }
     assert.deepEqual(errors, []);
     await page.screenshot({ path: resolve(output, `${workspace}-${scenario}.png`) });
     console.log(JSON.stringify({ workspace, scenario, passed: true }));
     await context.close();
   }
   await verifyCloudSnapshot();
+  await verifyBackendCoordinator();
 } finally { await browser.close(); }
 
 async function verifyCloudSnapshot() {
@@ -138,3 +176,30 @@ async function verifyCloudSnapshot() {
   await context.close();
 }
 
+
+async function verifyBackendCoordinator() {
+ const context = await browser.newContext();
+ const state = {revision:'host-revision', tasks:[{id:'n',title:'Fixture',notes:'Host text',createdAt:1}]};
+ let cloudRequests=0;
+ await context.addInitScript(state=>{
+  localStorage.setItem('zenro.notes.v1',JSON.stringify(state.tasks));
+ },state);
+ await context.route('**/*', async route=>{
+  const url=new URL(route.request().url());
+  if(url.pathname==='/test')return route.fulfill({contentType:'text/html',body:'<script src="/open-todo-zero/browser-cloud-client.js"></script>'});
+  if(url.pathname==='/api/user/todo/sync')return route.fulfill({json:{enabled:true,checkedAt:Date.now(),workspaces:{notes:{revision:state.revision,pending:false}}}});
+  if(url.pathname==='/api/user/todo/state')return route.fulfill({json:state});
+  if(url.pathname==='/api/user/todo/sync/connection')return route.fulfill({json:{enabled:true,url:'https://cloud.example.org',namespace:'fixture',key:'11'.repeat(32),token:'22'.repeat(32),deviceId:'33'.repeat(32)}});
+  if(url.origin==='https://cloud.example.org'){cloudRequests++;return route.fulfill({status:503});}
+  if(url.pathname.startsWith('/open-todo-zero/'))return route.fulfill({contentType:'text/javascript',body:readFileSync(resolve(assets,url.pathname.slice('/open-todo-zero/'.length)))});
+  return route.fulfill({status:404});
+ });
+ const page=await context.newPage();await page.goto('http://localhost:3999/test');
+ await expect.poll(()=>page.evaluate(()=>window.Onea2oCloud.status('notes')?.state)).toBe('synced');
+ await page.evaluate(()=>{const items=JSON.parse(localStorage.getItem('zenro.notes.v1'));items[0].notes+=' typing';localStorage.setItem('zenro.notes.v1',JSON.stringify(items));});
+ await page.evaluate(()=>window.Onea2oCloud.sync('notes'));
+ assert.equal(await page.evaluate(()=>window.Onea2oCloud.status('notes').state),'pending');
+ assert.equal(cloudRequests,0,'An active backend worker must be the sole cloud writer');
+ console.log(JSON.stringify({scenario:'single-backend-cloud-writer',passed:true}));
+ await context.close();
+}

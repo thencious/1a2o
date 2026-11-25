@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import useSWR from "swr";
-import { ArrowLeft, ContactRound, RefreshCw, Search } from "lucide-react";
+import { ArrowLeft, ContactRound, RefreshCw, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   ContextMenu,
@@ -112,18 +112,31 @@ export function ContactsWorkspace() {
       profile.sources.some((source) => source.key === selected),
     ),
   );
-  const shownAccounts = accounts.filter(
-    (account) => !network || networkName(account.network) === network,
+  const clearSelection = () => {
+    setSelected(null);
+    setSelectedIds(new Set());
+  };
+  const linkedInDirectAccount = accounts.find(
+    (account) =>
+      account.source === "linkedin-session" ||
+      account.source === "linkedin-portability",
   );
   const linkedInSyncAccount =
+    linkedInDirectAccount ??
     accounts.find(
-      (account) =>
-        account.source === "linkedin-session" ||
-        account.source === "linkedin-portability",
-    ) ??
-    accounts.find((account) =>
-      account.network.toLowerCase().includes("linkedin"),
+      (account) => contactNetworkKey(account.network) === "linkedin",
     );
+  const shownAccounts = accounts.filter((account) => {
+    if (network && networkName(account.network) !== network) return false;
+    // Beeper can list the LinkedIn messaging connection without a contact book.
+    return !(
+      linkedInDirectAccount &&
+      contactNetworkKey(account.network) === "linkedin" &&
+      !account.source &&
+      !account.contacts.length &&
+      !account.error
+    );
+  });
   const counts = new Map([
     ["all", rows.length],
     ...names.map(
@@ -173,7 +186,7 @@ export function ContactsWorkspace() {
         contactKey: current?.key ?? "",
         title: current?.name ?? "",
       })}
-      className="flex h-[calc(100dvh-2.25rem)] min-h-0 flex-col overflow-hidden bg-background lg:h-dvh"
+      className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background"
     >
       <h1 className="sr-only">Contacts</h1>
       <Dialog
@@ -438,12 +451,15 @@ export function ContactsWorkspace() {
                 <Button
                   variant="ghost"
                   className="mb-3 md:hidden"
-                  onClick={() => setSelected(null)}
+                  onClick={clearSelection}
                 >
                   <ArrowLeft className="mr-2 size-4" />
                   Contacts
                 </Button>
-                <UnifiedContactDetail person={current} />
+                <UnifiedContactDetail
+                  person={current}
+                  onClose={clearSelection}
+                />
               </>
             ) : (
               <div className="mb-5 flex items-center gap-2 text-muted-foreground">
@@ -451,88 +467,101 @@ export function ContactsWorkspace() {
                 Select a contact to view their details.
               </div>
             )}
-            <div className="mt-6 border-t pt-4">
-              <h2 className="mb-2 font-medium">Contacts by account</h2>
-              <p className="mb-3 text-xs text-muted-foreground">
-                Email address books, Beeper contacts and LinkedIn connections.
-                Duplicate matching runs automatically whenever contacts change.
-              </p>
-              {shownAccounts.map((account) => (
-                <div key={account.id} className="border-b py-3 text-xs">
-                  <div className="flex items-center justify-between gap-3">
-                    <span
-                      className="min-w-0 flex-1"
-                      style={{ color: networkColor(account.network, 50, 78) }}
-                    >
-                      {networkName(account.network)} · {account.name}
-                    </span>
-                    {account.id === linkedInSyncAccount?.id && (
-                      <LinkedInContactsConnection onChange={() => mutate()} />
-                    )}
-                    <strong className="shrink-0 whitespace-nowrap text-right tabular-nums">
-                      {account.contacts.length.toLocaleString()}
-                    </strong>
-                  </div>
-                  <p className="mt-1 text-muted-foreground">
-                    {account.error
-                      ? account.error
-                      : `All ${account.pages} API page${account.pages === 1 ? "" : "s"} read${account.contacts.length ? "" : "; no contacts returned"}.`}
-                  </p>
-                  {account.source === "email-contacts" &&
-                    account.reconnectRequired && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="mt-2"
-                        onClick={async () => {
-                          if (!account.emailProvider || !account.emailAccountId)
-                            return;
-                          try {
-                            const url = await getAccountLinkingUrl(
-                              account.emailProvider,
-                              {
-                                reconnectEmailAccountId: account.emailAccountId,
-                              },
-                            );
-                            redirectToSafeUrl(url, { allowExternal: true });
-                          } catch (error) {
-                            setFailure(
-                              error instanceof Error
-                                ? error.message
-                                : "Could not request contacts access.",
-                            );
-                          }
-                        }}
+            {!current && (
+              <div className="mt-6 border-t pt-4">
+                <h2 className="mb-2 font-medium">Contacts by account</h2>
+                <p className="mb-3 text-xs text-muted-foreground">
+                  Email address books, Beeper contacts and LinkedIn connections.
+                  Duplicate matching runs automatically whenever contacts
+                  change.
+                </p>
+                {shownAccounts.map((account) => (
+                  <div key={account.id} className="border-b py-3 text-xs">
+                    <div className="flex items-center justify-between gap-3">
+                      <span
+                        className="min-w-0 flex-1"
+                        style={{ color: networkColor(account.network, 50, 78) }}
                       >
-                        Enable contacts
-                      </Button>
-                    )}
-                  {account.apiDisabled && (
-                    <a
-                      className="mt-2 block underline"
-                      href="https://console.cloud.google.com/apis/library/people.googleapis.com"
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      Enable Google People API
-                    </a>
-                  )}
-                  {account.error && account.fetchedAt && (
+                        {networkName(account.network)} · {account.name}
+                      </span>
+                      {account.id === linkedInSyncAccount?.id && (
+                        <LinkedInContactsConnection onChange={() => mutate()} />
+                      )}
+                      <strong className="shrink-0 whitespace-nowrap text-right tabular-nums">
+                        {account.contacts.length.toLocaleString()}
+                      </strong>
+                    </div>
                     <p className="mt-1 text-muted-foreground">
-                      Saved results from{" "}
-                      {new Date(account.fetchedAt).toLocaleString()}
+                      {account.error
+                        ? account.error
+                        : `All ${account.pages} API page${account.pages === 1 ? "" : "s"} read${account.contacts.length ? "" : "; no contacts returned"}.`}
                     </p>
-                  )}
-                </div>
-              ))}
-            </div>
+                    {account.source === "email-contacts" &&
+                      account.reconnectRequired && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="mt-2"
+                          onClick={async () => {
+                            if (
+                              !account.emailProvider ||
+                              !account.emailAccountId
+                            )
+                              return;
+                            try {
+                              const url = await getAccountLinkingUrl(
+                                account.emailProvider,
+                                {
+                                  reconnectEmailAccountId:
+                                    account.emailAccountId,
+                                },
+                              );
+                              redirectToSafeUrl(url, { allowExternal: true });
+                            } catch (error) {
+                              setFailure(
+                                error instanceof Error
+                                  ? error.message
+                                  : "Could not request contacts access.",
+                              );
+                            }
+                          }}
+                        >
+                          Enable contacts
+                        </Button>
+                      )}
+                    {account.apiDisabled && (
+                      <a
+                        className="mt-2 block underline"
+                        href="https://console.cloud.google.com/apis/library/people.googleapis.com"
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        Enable Google People API
+                      </a>
+                    )}
+                    {account.error && account.fetchedAt && (
+                      <p className="mt-1 text-muted-foreground">
+                        Saved results from{" "}
+                        {new Date(account.fetchedAt).toLocaleString()}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </ResizablePanel>
       </ResizablePanelGroup>
     </section>
   );
 }
-function UnifiedContactDetail({ person }: { person: UnifiedContact }) {
+function UnifiedContactDetail({
+  person,
+  onClose,
+}: {
+  person: UnifiedContact;
+  onClose: () => void;
+}) {
   const details = [
     ["Email", contactValues(person, "email")],
     ["Phone", contactValues(person, "phoneNumber")],
@@ -541,7 +570,19 @@ function UnifiedContactDetail({ person }: { person: UnifiedContact }) {
   ] as const;
   return (
     <>
-      <h2 className="mb-2 text-lg font-medium">{person.name}</h2>
+      <div className="mb-2 flex items-start justify-between gap-2">
+        <h2 className="text-lg font-medium">{person.name}</h2>
+        <Button
+          variant="ghost"
+          size="iconXs"
+          className="hidden shrink-0 md:inline-flex"
+          aria-label="Close contact details"
+          title="Close contact details"
+          onClick={onClose}
+        >
+          <X className="size-4" />
+        </Button>
+      </div>
       {person.ambiguous && (
         <p className="mb-4 text-xs text-muted-foreground">
           Multiple profiles in the same app share this name. They are kept

@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -38,6 +39,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Separator } from "@/components/ui/separator";
+import { prefixPath } from "@/utils/path";
 import { ConnectCalendar } from "./ConnectCalendar";
 
 type CalendarConnection = GetCalendarsResponse["connections"][0];
@@ -66,7 +68,7 @@ const getProviderInfo = (provider: string) => {
 export function CalendarConnectionCard({
   connection,
 }: CalendarConnectionCardProps) {
-  const { emailAccountId } = useAccount();
+  const { emailAccountId, userEmail, provider } = useAccount();
   const { data, mutate } = useCalendars();
   const [optimisticUpdates, setOptimisticUpdates] = useState<
     Record<string, boolean>
@@ -74,6 +76,9 @@ export function CalendarConnectionCard({
   const [isOpen, setIsOpen] = useState(false);
 
   const providerInfo = getProviderInfo(connection.provider);
+  const isMailboxCalendar =
+    provider === connection.provider &&
+    userEmail.toLowerCase() === connection.email.toLowerCase();
 
   const calendars = connection.calendars || [];
   const enabledCalendars = calendars.filter((cal) => {
@@ -202,11 +207,21 @@ export function CalendarConnectionCard({
         {(connection.provider === "google" ||
           connection.provider === "microsoft") && (
           <div className="mb-4 space-y-2">
-            <ConnectCalendar
-              provider={connection.provider}
-              editing
-              email={connection.email}
-            />
+            {isMailboxCalendar ? (
+              <Button asChild size="sm" variant="outline">
+                <Link href={prefixPath(emailAccountId, "/permissions/consent")}>
+                  {connection.isConnected
+                    ? "Enable editing"
+                    : "Reconnect account"}
+                </Link>
+              </Button>
+            ) : (
+              <ConnectCalendar
+                provider={connection.provider}
+                editing
+                email={connection.email}
+              />
+            )}
             <p className="text-xs text-muted-foreground">
               Reconnect and approve calendar event editing. Shared calendars
               also need editing access from their owner.

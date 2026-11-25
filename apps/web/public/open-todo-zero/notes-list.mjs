@@ -49,6 +49,7 @@ export function visibleNotes(
   const end = to ? new Date(to).getTime() + 59_999 : Number.NaN;
   const search = query.trim().toLocaleLowerCase();
   const items = manualNotes(notes).filter((note) => {
+    if (note.recoveredFrom) return false;
     const timestamp = noteTimestamp(note, dateField);
     return (
       `${note.title} ${note.notes}`.toLocaleLowerCase().includes(search) &&

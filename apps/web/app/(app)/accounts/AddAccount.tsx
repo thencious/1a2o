@@ -12,8 +12,10 @@ import { redirectToSafeUrl } from "@/utils/redirect";
 
 export function AddAccount({
   helperText = "You will be billed for each account.",
+  providers = ["google", "microsoft"],
 }: {
   helperText?: ReactNode;
+  providers?: ("google" | "microsoft")[];
 }) {
   const [isLoadingGoogle, setIsLoadingGoogle] = useState(false);
   const [isLoadingMicrosoft, setIsLoadingMicrosoft] = useState(false);
@@ -42,42 +44,46 @@ export function AddAccount({
 
   return (
     <div className="flex flex-col items-center justify-center gap-3 min-h-[90px]">
-      <div className="flex items-center gap-2">
-        <Button
-          variant="outline"
-          className="w-full"
-          onClick={() => handleAddAccount("google")}
-          loading={isLoadingGoogle}
-          disabled={isLoadingGoogle || isLoadingMicrosoft}
-        >
-          <Image
-            src="/images/google.svg"
-            alt=""
-            width={24}
-            height={24}
-            unoptimized
-          />
-          <span className="ml-2">Add Google</span>
-        </Button>
-        <Button
-          variant="outline"
-          className="w-full"
-          onClick={() => handleAddAccount("microsoft")}
-          loading={isLoadingMicrosoft}
-          disabled={isLoadingGoogle || isLoadingMicrosoft}
-        >
-          <Image
-            src="/images/microsoft.svg"
-            alt=""
-            width={24}
-            height={24}
-            unoptimized
-          />
-          <span className="ml-2">Add Microsoft</span>
-        </Button>
+      <div className="flex flex-wrap items-center justify-center gap-2">
+        {providers.includes("google") && (
+          <Button
+            variant="outline"
+            className="w-full"
+            onClick={() => handleAddAccount("google")}
+            loading={isLoadingGoogle}
+            disabled={isLoadingGoogle || isLoadingMicrosoft}
+          >
+            <Image
+              src="/images/google.svg"
+              alt=""
+              width={24}
+              height={24}
+              unoptimized
+            />
+            <span className="ml-2">Add Google</span>
+          </Button>
+        )}
+        {providers.includes("microsoft") && (
+          <Button
+            variant="outline"
+            className="w-full"
+            onClick={() => handleAddAccount("microsoft")}
+            loading={isLoadingMicrosoft}
+            disabled={isLoadingGoogle || isLoadingMicrosoft}
+          >
+            <Image
+              src="/images/microsoft.svg"
+              alt=""
+              width={24}
+              height={24}
+              unoptimized
+            />
+            <span className="ml-2">Add Microsoft</span>
+          </Button>
+        )}
       </div>
 
-      <MutedText>{helperText}</MutedText>
+      {helperText && <MutedText>{helperText}</MutedText>}
     </div>
   );
 }

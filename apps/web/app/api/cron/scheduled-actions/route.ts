@@ -1,4 +1,5 @@
 import { processDueScheduledEmails } from "@/utils/scheduled-email/service";
+import { processDueScheduledMessages } from "@/utils/messages/scheduled";
 import { NextResponse } from "next/server";
 import { withError } from "@/utils/middleware";
 import { hasCronSecret, hasPostCronSecret } from "@/utils/cron";
@@ -144,6 +145,15 @@ async function processScheduledActions(logger: Logger) {
 }
 
 async function processScheduledMail(logger: Logger) {
+  const scheduledMessages =
+    env.LOCAL_BEEPER_ENABLED === "true" && env.LOCAL_BEEPER_OWNER_ID
+      ? processDueScheduledMessages(env.LOCAL_BEEPER_OWNER_ID, logger).catch(
+          (error) => {
+            logger.error("Scheduled message processing failed", { error });
+            return;
+          },
+        )
+      : undefined;
   if (!env.QSTASH_TOKEN) {
     const [scheduledActions, snoozedThreads, scheduledEmails] =
       await Promise.all([
@@ -151,7 +161,12 @@ async function processScheduledMail(logger: Logger) {
         processDueSnoozedThreads(logger),
         processDueScheduledEmails(logger),
       ]);
-    return { scheduledActions, snoozedThreads, scheduledEmails };
+    return {
+      scheduledActions,
+      snoozedThreads,
+      scheduledEmails,
+      scheduledMessages: await scheduledMessages,
+    };
   }
 
   logger.info("QStash configured; checking snoozed thread fallback");
@@ -160,6 +175,7 @@ async function processScheduledMail(logger: Logger) {
     processDueScheduledEmails(logger),
   ]);
   return {
+    scheduledMessages: await scheduledMessages,
     scheduledEmails,
     scheduledActions: { skipped: true, reason: "qstash-configured" },
     snoozedThreads,

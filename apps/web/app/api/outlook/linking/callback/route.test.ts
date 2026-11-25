@@ -99,7 +99,7 @@ vi.mock("@/utils/outlook/scopes", () => ({
     "Mail.Send",
     "MailboxSettings.ReadWrite",
   ],
-  SCOPES: [
+  MAILBOX_AUTH_SCOPES: [
     "openid",
     "profile",
     "email",
@@ -109,6 +109,8 @@ vi.mock("@/utils/outlook/scopes", () => ({
     "Mail.Send",
     "Contacts.Read",
     "MailboxSettings.ReadWrite",
+    "Calendars.Read",
+    "Calendars.ReadWrite",
   ],
 }));
 

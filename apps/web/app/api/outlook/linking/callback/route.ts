@@ -1,4 +1,5 @@
 import { env } from "@/env";
+import { clearAccountDisconnectedErrorIfResolved } from "@/utils/error-messages";
 import { auth } from "@/utils/auth";
 import { hash } from "@/utils/hash";
 import prisma from "@/utils/prisma";
@@ -42,9 +43,10 @@ import {
 } from "@/utils/redis/oauth-code";
 import { isDuplicateError } from "@/utils/prisma-helpers";
 import {
+  MAILBOX_AUTH_SCOPES as OUTLOOK_SCOPES,
   REQUIRED_SCOPES as OUTLOOK_REQUIRED_SCOPES,
-  SCOPES as OUTLOOK_SCOPES,
 } from "@/utils/outlook/scopes";
+import { connectCalendarFromMailboxGrant } from "@/utils/calendar/mailbox-grant";
 import type { Logger } from "@/utils/logger";
 
 export const GET = withError("outlook/linking/callback", async (request) => {
@@ -283,6 +285,7 @@ export const GET = withError("outlook/linking/callback", async (request) => {
 
       return completeMicrosoftTokenUpdate({
         accountId: linkingResult.existingAccountId,
+        userId: targetUserId,
         code,
         logger,
         providerEmail,
@@ -345,6 +348,12 @@ export const GET = withError("outlook/linking/callback", async (request) => {
           },
         });
 
+        await connectCalendarFromMailboxGrant({
+          accountId: newAccount.id,
+          provider: "microsoft",
+          grantedScope: tokens.scope,
+          logger,
+        });
         logger.info("Successfully created and linked new Microsoft account", {
           email: providerEmail,
           targetUserId,
@@ -420,6 +429,7 @@ export const GET = withError("outlook/linking/callback", async (request) => {
       });
       return completeMicrosoftTokenUpdate({
         accountId: linkingResult.existingAccountId,
+        userId: targetUserId,
         code,
         logger,
         providerEmail,
@@ -497,12 +507,14 @@ const MICROSOFT_LINKING_SCOPES_TO_VALIDATE = OUTLOOK_REQUIRED_SCOPES.filter(
 
 async function completeMicrosoftTokenUpdate({
   accountId,
+  userId,
   code,
   logger,
   providerAccountId,
   providerEmail,
 }: {
   accountId: string;
+  userId: string;
   code: string;
   logger: Logger;
   providerAccountId: string;
@@ -515,6 +527,7 @@ async function completeMicrosoftTokenUpdate({
     providerSubjectHash: hashOAuthAuditIdentifier(providerAccountId),
   });
 
+  await clearAccountDisconnectedErrorIfResolved({ userId, logger });
   await setOAuthCodeResult(code, { success: "tokens_updated" });
   return createAccountLinkingRedirect({
     query: { success: "tokens_updated" },
@@ -617,6 +630,12 @@ async function updateMicrosoftAccountTokens(
       token_type: tokens.token_type,
       disconnectedAt: null,
     },
+  });
+
+  await connectCalendarFromMailboxGrant({
+    accountId,
+    provider: "microsoft",
+    grantedScope: tokens.scope,
   });
 
   // Force subscription renewal on next watch cycle after reconnect.

@@ -7,12 +7,17 @@ import type {
 } from "@/app/api/user/stats/load/route";
 
 export function useInboxScan(
-  accounts: { id: string; email: string }[],
+  accounts: {
+    id: string;
+    email: string;
+    account?: { disconnectedAt?: string | null };
+  }[],
   refresh: () => Promise<unknown>,
 ) {
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
   const [loaded, setLoaded] = useState(0);
+  const [paused, setPaused] = useState("");
   const active = useRef<AbortController | null>(null);
   const seen = useRef(new Set<string>());
   const latest = useRef(refresh);
@@ -21,7 +26,11 @@ export function useInboxScan(
     async (manual: boolean) => {
       if (
         active.current ||
-        (!manual && accounts.every((account) => seen.current.has(account.id)))
+        (!manual &&
+          accounts.every(
+            (account) =>
+              account.account?.disconnectedAt || seen.current.has(account.id),
+          ))
       )
         return;
       const controller = new AbortController();
@@ -32,21 +41,43 @@ export function useInboxScan(
       try {
         for (const account of accounts) {
           if (controller.signal.aborted) break;
-          if (!manual && seen.current.has(account.id)) continue;
+          if (
+            account.account?.disconnectedAt ||
+            (!manual && seen.current.has(account.id))
+          )
+            continue;
           seen.current.add(account.id);
           const storageKey = `bulk-unsubscribe-history-v1:${account.id}`;
           const checkpoint = readCheckpoint(storageKey);
-          const post = (body: object) =>
-            swrFetcher(
-              "/api/user/stats/load",
-              {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(body),
-                signal: controller.signal,
-              },
-              account.id,
-            );
+          const post = async (body: object) => {
+            for (let attempt = 0; ; attempt++) {
+              try {
+                const result = await swrFetcher(
+                  "/api/user/stats/load",
+                  {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(body),
+                    signal: controller.signal,
+                  },
+                  account.id,
+                );
+                setPaused("");
+                return result;
+              } catch (error) {
+                if (
+                  (error as { status?: number }).status !== 429 ||
+                  attempt >= 3 ||
+                  controller.signal.aborted
+                )
+                  throw error;
+                setPaused(
+                  `Email provider limit reached for ${account.email}. Scan paused; retrying automatically.`,
+                );
+                await pauseScan(30_000 * 2 ** attempt, controller.signal);
+              }
+            }
+          };
           try {
             if (!manual && checkpoint.complete) {
               const result: LoadEmailStatsResponse = await post({
@@ -71,6 +102,7 @@ export function useInboxScan(
               saveCheckpoint(storageKey, { pageToken, complete: !pageToken });
               setLoaded((total) => total + result.loadedMessages);
               await latest.current();
+              if (pageToken) await pauseScan(1000, controller.signal);
             } while (pageToken);
           } catch {
             if (controller.signal.aborted) seen.current.delete(account.id);
@@ -81,6 +113,7 @@ export function useInboxScan(
         if (active.current === controller) {
           active.current = null;
           setLoading(false);
+          setPaused("");
         }
       }
     },
@@ -90,7 +123,7 @@ export function useInboxScan(
     if (!loading) scan(false);
   }, [scan, loading]);
   useEffect(() => () => active.current?.abort(), []);
-  return { loading, errors, loaded, scan };
+  return { loading, errors, loaded, paused, scan };
 }
 
 function readCheckpoint(key: string): {
@@ -118,4 +151,22 @@ function saveCheckpoint(
   } catch {
     /* Scanning also works without persistent browser storage. */
   }
+}
+
+function pauseScan(ms: number, signal: AbortSignal) {
+  return new Promise<void>((resolve, reject) => {
+    if (signal.aborted)
+      return reject(new DOMException("Aborted", "AbortError"));
+    const done = () => {
+      signal.removeEventListener("abort", cancel);
+      resolve();
+    };
+    const timer = setTimeout(done, ms);
+    const cancel = () => {
+      clearTimeout(timer);
+      signal.removeEventListener("abort", cancel);
+      reject(new DOMException("Aborted", "AbortError"));
+    };
+    signal.addEventListener("abort", cancel, { once: true });
+  });
 }

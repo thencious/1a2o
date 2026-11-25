@@ -3,7 +3,7 @@ import {resolve,dirname} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {createHash,randomUUID} from 'node:crypto';
 import {atomicWrite,readJson,localKey,seal,unseal,withFileLock,packCloudState,unpackCloudState} from '../../apps/web/utils/todo/cloud-sync-core.mjs';
-import {mergeWorkspaceItems} from '../../apps/web/public/open-todo-zero/workspace-data.mjs';
+import {mergeWorkspaceItems,consolidateRecoveryCopies} from '../../apps/web/public/open-todo-zero/workspace-data.mjs';
 
 const rootOption=process.argv.indexOf('--root');
 const root=rootOption>=0?resolve(process.argv[rootOption+1]):resolve(dirname(fileURLToPath(import.meta.url)),'../..');
@@ -42,6 +42,12 @@ async function run(workspace){
   try{local=JSON.parse(unseal(await readFile(localFile,'utf8'),hostKey,'v1:'));}catch(error){if(error.code!=='ENOENT')throw error;local=null;}
   if(!local&&cloudState){await atomicWrite(localFile,seal(JSON.stringify(cloudState),hostKey,'v1:'));local=cloudState;}
   if(!local)return;
+  const normalized=consolidateRecoveryCopies(local.tasks);
+  if(JSON.stringify(normalized)!==JSON.stringify(local.tasks)){
+   await archive(localFile,local);
+   local={revision:randomUUID(),tasks:normalized};
+   await atomicWrite(localFile,seal(JSON.stringify(local),hostKey,'v1:'));
+  }
   if(cloudState&&cloudState.revision!==meta.revision&&local.revision!==cloudState.revision){
    const merged=mergeWorkspaceItems(meta.baseline?.tasks??[],local.tasks,cloudState.tasks);
    const updated={revision:randomUUID(),tasks:merged};

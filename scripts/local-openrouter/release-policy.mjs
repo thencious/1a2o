@@ -1,5 +1,6 @@
 import {existsSync,readFileSync} from "node:fs";
 import {resolve} from "node:path";
+import {createServer} from "node:net";
 
 export function validateReleaseDirectory(directory) {
   if (directory !== ".next" && !/^\.next-releases\/[a-zA-Z0-9_-]+$/.test(directory)) throw new Error("Invalid local release directory");
@@ -26,4 +27,13 @@ export async function switchRelease({previous,candidate,checkCandidate,stopWeb,w
     await startWeb();
     throw error;
   }
+}
+
+export async function availableProbePort() {
+  const server=createServer();
+  await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(0,'127.0.0.1',resolve);});
+  const address=server.address();
+  const port=address.port;
+  await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
+  return port;
 }

@@ -8,11 +8,13 @@ const accounts = [
   { id: "gmail", email: "a@example.com" },
   { id: "outlook", email: "b@example.com" },
 ];
+beforeEach(() => {
+  vi.clearAllMocks();
+  fetcher.mockReset();
+  localStorage.clear();
+});
+
 describe("resumable inbox scanning", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    localStorage.clear();
-  });
   it("continues incomplete history scans and uses incremental sync after a complete walk", async () => {
     localStorage.setItem(
       "bulk-unsubscribe-history-v1:gmail",
@@ -34,7 +36,9 @@ describe("resumable inbox scanning", () => {
     const { result, unmount } = renderHook(() =>
       useInboxScan(accounts, refresh),
     );
-    await waitFor(() => expect(result.current.loading).toBe(false));
+    await waitFor(() => expect(result.current.loading).toBe(false), {
+      timeout: 4000,
+    });
     expect(
       fetcher.mock.calls.map((call) => [call[2], JSON.parse(call[1].body)]),
     ).toEqual([
@@ -59,8 +63,9 @@ describe("resumable inbox scanning", () => {
     const { result, unmount } = renderHook(() =>
       useInboxScan(one, async () => {}),
     );
-    await waitFor(() =>
-      expect(result.current.errors).toEqual(["a@example.com"]),
+    await waitFor(
+      () => expect(result.current.errors).toEqual(["a@example.com"]),
+      { timeout: 4000 },
     );
     expect(
       JSON.parse(localStorage.getItem("bulk-unsubscribe-history-v1:gmail")!)
@@ -77,4 +82,46 @@ describe("resumable inbox scanning", () => {
     expect(result.current.errors).toEqual([]);
     unmount();
   });
+});
+
+it("does not request a known disconnected mailbox and resumes it after reconnection", async () => {
+  fetcher.mockResolvedValue({ loadedMessages: 1, nextPageToken: null });
+  const account = {
+    ...accounts[0],
+    account: { disconnectedAt: "2026-11-17T00:00:00Z" as string | null },
+  };
+  const { result, rerender, unmount } = renderHook(
+    ({ items }) => useInboxScan(items, async () => {}),
+    { initialProps: { items: [account] } },
+  );
+  await act(async () => {});
+  expect(fetcher).not.toHaveBeenCalled();
+  rerender({ items: [{ ...account, account: { disconnectedAt: null } }] });
+  await waitFor(() => expect(result.current.loaded).toBe(1));
+  expect(fetcher).toHaveBeenCalledTimes(1);
+  unmount();
+});
+it("retains the cursor while paused on rate limiting and retries the same page", async () => {
+  vi.useFakeTimers();
+  try {
+    fetcher
+      .mockRejectedValueOnce(
+        Object.assign(new Error("Rate limited"), { status: 429 }),
+      )
+      .mockResolvedValueOnce({ loadedMessages: 3, nextPageToken: null });
+    const one = accounts.slice(0, 1),
+      { result, unmount } = renderHook(() => useInboxScan(one, async () => {}));
+    await act(async () => {});
+    expect(result.current.paused).toContain("retrying automatically");
+    expect(result.current.errors).toEqual([]);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30_000);
+    });
+    expect(result.current.loaded).toBe(3);
+    expect(result.current.paused).toBe("");
+    expect(fetcher.mock.calls[0][1].body).toBe(fetcher.mock.calls[1][1].body);
+    unmount();
+  } finally {
+    vi.useRealTimers();
+  }
 });

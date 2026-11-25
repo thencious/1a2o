@@ -37,6 +37,7 @@ const locks = new Map<string, Promise<unknown>>();
 
 export async function linkedInContactsStatus(userId: string) {
   const saved = await read(userId);
+  const requiresReconnect = saved ? linkedInRequiresReconnect(saved) : false;
   const visibleAccount = saved?.progress?.contacts.length
     ? {
         ...saved.account,
@@ -59,15 +60,15 @@ export async function linkedInContactsStatus(userId: string) {
         importedSoFar: saved.progress?.contacts.length ?? 0,
         savedCount: visibleAccount?.contacts.length ?? 0,
         pausedUntil:
-          !saved.requiresReconnect &&
+          !requiresReconnect &&
           saved.cooldownUntil &&
           saved.cooldownUntil > Date.now()
             ? new Date(saved.cooldownUntil).toISOString()
             : null,
-        requiresReconnect: saved.requiresReconnect,
+        requiresReconnect,
         error: saved.error,
         lastSyncAt: saved.account.fetchedAt,
-        nextSyncAt: saved.requiresReconnect
+        nextSyncAt: requiresReconnect
           ? null
           : new Date(saved.nextSyncAt).toISOString(),
         account: visibleAccount ?? null,
@@ -175,7 +176,7 @@ export async function syncLinkedInContacts(userId: string, force = false) {
       now = Date.now();
     if (
       !saved ||
-      saved.requiresReconnect ||
+      linkedInRequiresReconnect(saved) ||
       now < (saved.cooldownUntil ?? 0) ||
       now < (force ? saved.lastAttemptAt + 60_000 : saved.nextSyncAt)
     )
@@ -262,6 +263,18 @@ export async function disconnectLinkedInContacts(userId: string) {
     });
     return { disconnected: true };
   });
+}
+
+function linkedInRequiresReconnect(saved: z.infer<typeof storedConnection>) {
+  if (saved.requiresReconnect) return true;
+  if (!saved.browserSession) return false;
+  const now = Date.now() / 1000;
+  return !saved.browserSession.cookies.some(
+    (cookie) =>
+      cookie.name === "li_at" &&
+      cookie.value &&
+      (cookie.expires <= 0 || cookie.expires > now),
+  );
 }
 
 export async function syncDueLinkedInContacts() {

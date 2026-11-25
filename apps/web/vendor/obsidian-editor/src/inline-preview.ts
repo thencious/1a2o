@@ -279,9 +279,7 @@ class TaskCheckboxWidget extends WidgetType {
     // The `.cm-atomic-list-marker` class provides the uniform
     // inline-block alcove shared by bullets, checkboxes, and
     // ordered numbers. We apply it directly to the `<input>` so
-    // selectors like `input.cm-atomic-task-checkbox` still work
-    // (a wrapper span broke a Playwright probe that targets the
-    // input by its class).
+    // selectors like `input.cm-atomic-task-checkbox` still work.
     const input = document.createElement('input');
     input.type = 'checkbox';
     input.checked = this.checked;
@@ -301,7 +299,12 @@ class TaskCheckboxWidget extends WidgetType {
       if (current === next) return;
       view.dispatch({ changes: { from: pos, to: pos + 3, insert: next } });
     });
-    return input;
+    // A replacement widget's caret position uses its DOM bounds, excluding
+    // outside margins. Own the trailing gap so empty items align with text.
+    const marker = document.createElement('span');
+    marker.className = 'cm-atomic-task-marker';
+    marker.append(input);
+    return marker;
   }
 
   ignoreEvent(event: Event): boolean {

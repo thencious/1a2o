@@ -65,6 +65,16 @@
 .workspace-markdown .cm-gutters {
   display: none;
 }
+.workspace-markdown .md-obsidian .cm-atomic-bullet {
+  box-sizing: content-box;
+  padding-inline-end: 0.4em;
+  margin-inline-end: 0;
+}
+.workspace-markdown .cm-atomic-task-marker {
+  display: inline-block;
+  padding-inline-end: 0.25em;
+  text-indent: 0;
+}
 .workspace-markdown
   .cm-editor[data-empty="true"]:not(.cm-focused)
   .cm-content::before {
@@ -119,4 +129,8 @@
   background: #1b1b1b;
   border: 1px solid #444;
   border-radius: 4px;
+}
+
+.workspace-markdown .md-obsidian .cm-atomic-task-marker input {
+  margin-inline-end: 0;
 }

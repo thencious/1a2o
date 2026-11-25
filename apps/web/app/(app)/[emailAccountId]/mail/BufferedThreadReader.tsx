@@ -10,6 +10,8 @@ import {
 import type { ThreadReaderProps } from "@/app/(app)/[emailAccountId]/mail/ThreadReader";
 import { LoadingMiniSpinner } from "@/components/Loading";
 
+const READER_HANDOFF_MS = 150;
+
 export function BufferedThreadReader({
   children,
   threadKey,
@@ -43,7 +45,7 @@ export function BufferedThreadReader({
     if (readinessDeadline.current?.key !== threadKey) {
       readinessDeadline.current = {
         key: threadKey,
-        expiresAt: performance.now() + 2000,
+        expiresAt: performance.now() + READER_HANDOFF_MS,
       };
     }
     const { expiresAt } = readinessDeadline.current;
@@ -54,9 +56,8 @@ export function BufferedThreadReader({
       setVisibleKey(threadKey);
       onReady(threadKey);
     };
-    // A slow load or a malformed email must not leave the previous thread on
-    // screen indefinitely; past the deadline the reader shows its own loading
-    // or error state instead.
+    // Buffer a normal frame swap. For missing content, show the new thread's
+    // loading state promptly so the old email doesn't look stuck.
     const timeout = setTimeout(commit, Math.max(0, remaining));
     if (!dataReady) return () => clearTimeout(timeout);
     const reveal = () => {

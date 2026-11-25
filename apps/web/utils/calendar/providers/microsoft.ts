@@ -78,6 +78,7 @@ export function createMicrosoftCalendarProvider(
         refreshToken,
         expiresAt: expiresAt?.getTime() ?? null,
         emailAccountId,
+        connectionId,
         logger,
       });
 
@@ -118,10 +119,6 @@ export function createMicrosoftCalendarProvider(
         await autoPopulateTimezone(emailAccountId, microsoftCalendars, logger);
       } catch (error) {
         logger.error("Error syncing calendars", { error, connectionId });
-        await prisma.calendarConnection.update({
-          where: { id: connectionId },
-          data: { isConnected: false },
-        });
         throw error;
       }
     },

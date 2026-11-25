@@ -15,6 +15,15 @@ export function splitEmailContent(html: string): {
   quotedContent: string;
   hasQuotedContent: boolean;
 } {
+  // Sanitized HTML has normalized attribute values. Avoid another DOM parse
+  // for messages that cannot match any of the quote boundaries.
+  if (
+    !/gmail_quote|divRplyFwdMsg|appendonsend|yahoo_quoted|moz-cite-prefix|blockquote|WordSection1/i.test(
+      html,
+    )
+  ) {
+    return { mainContent: html, quotedContent: "", hasQuotedContent: false };
+  }
   const doc = new DOMParser().parseFromString(html, "text/html");
   const hasDocumentStructure =
     DOCUMENT_STRUCTURE_PATTERN.test(html) || doc.head.childNodes.length > 0;

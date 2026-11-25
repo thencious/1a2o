@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import {validateReleaseDirectory,switchRelease} from "./release-policy.mjs";
+import {createServer} from "node:net";
+import {validateReleaseDirectory,switchRelease,availableProbePort} from "./release-policy.mjs";
 
 test("release paths cannot escape the owned build directory",()=>{
   for(const value of ["../outside",".next-releases/../outside","C:/outside",".next-candidate",null]) assert.throws(()=>validateReleaseDirectory(value));
@@ -21,4 +22,9 @@ test("failed startup restores the previous release and its service worker",async
   const calls=[];let starts=0;
   await assert.rejects(switchRelease({previous:".next",candidate:".next-releases/new",checkCandidate:async()=>{},stopWeb:async()=>calls.push("stop"),writeActive:async value=>calls.push(value),installAssets:async()=>calls.push("new assets"),restoreAssets:async()=>calls.push("restore assets"),startWeb:async()=>{calls.push("start");if(!starts++)throw new Error("Candidate failed");}}),/Candidate failed/);
   assert.deepEqual(calls,["stop",".next-releases/new","new assets","start","stop",".next","restore assets","start"]);
+});
+
+test('a release probe chooses a free port without stopping an existing local service',async()=>{
+ const service=createServer();await new Promise(resolve=>service.listen(0,'127.0.0.1',resolve));
+ try{const port=await availableProbePort();assert.notEqual(port,service.address().port);assert(service.listening);assert(port>0&&port<65536);}finally{await new Promise(resolve=>service.close(resolve));}
 });

@@ -4,6 +4,8 @@ const mocks = vi.hoisted(() => ({
   state: {} as AttentionState,
   mail: vi.fn(),
   messages: vi.fn(),
+  chats: vi.fn(),
+  search: vi.fn(),
   tasks: vi.fn(),
   agents: vi.fn(),
 }));
@@ -28,15 +30,9 @@ vi.mock("@/utils/beeper/connection", () => ({
   beeperSession: async () => ({
     settings: { groups: [] },
     client: {
-      messages: { search: mocks.messages },
+      messages: { list: mocks.messages, search: mocks.search },
       chats: {
-        retrieve: async () => ({
-          id: "chat",
-          title: "Sample chat",
-          accountID: "whatsapp",
-          network: "WhatsApp",
-          type: "single",
-        }),
+        list: mocks.chats,
       },
     },
   }),
@@ -69,6 +65,20 @@ beforeEach(() => {
   };
   mocks.mail.mockReset().mockResolvedValue({ messages: [] });
   mocks.messages.mockReset().mockResolvedValue({ items: [], hasMore: false });
+  mocks.search.mockReset().mockResolvedValue({ items: [], hasMore: false });
+  mocks.chats.mockReset().mockResolvedValue({
+    items: [
+      {
+        id: "chat",
+        title: "Sample chat",
+        accountID: "whatsapp",
+        network: "WhatsApp",
+        type: "single",
+        unreadCount: 1,
+      },
+    ],
+    hasMore: false,
+  });
   mocks.tasks.mockReset().mockResolvedValue({ tasks: [] });
   mocks.agents.mockReset().mockResolvedValue([]);
 });
@@ -185,4 +195,120 @@ it("uses the latest focused conversation even when it changes during provider co
   expect(result.counts.messages).toBe(0);
   expect(Object.values(mocks.state.events)).toHaveLength(1);
   expect(Object.values(mocks.state.events)[0].readAt).toBe(now);
+});
+
+it("detects unread messages from the live feed when global search has not indexed them, without an open Messages tab", async () => {
+  mocks.state.startedAt = now - 3_600_000;
+  mocks.state.checkpoints.messages = now - 5000;
+  mocks.messages.mockResolvedValue({
+    items: [
+      {
+        id: "late-index",
+        chatID: "chat",
+        timestamp: new Date(now - 3 * 60_000).toISOString(),
+        text: "New incoming",
+        isUnread: true,
+      },
+    ],
+    hasMore: false,
+  });
+  const result = await collectAttention(
+    "owner",
+    createScopedLogger("attention-test"),
+  );
+  expect(result.counts.messages).toBe(1);
+  expect(result.events[0]).toMatchObject({
+    tab: "messages",
+    body: "New incoming",
+  });
+  expect(mocks.search).not.toHaveBeenCalled();
+  const again = await collectAttention(
+    "owner",
+    createScopedLogger("attention-test"),
+  );
+  expect(again.counts.messages).toBe(1);
+  mocks.state.events[result.events[0].id].readAt = now;
+  expect(
+    (await collectAttention("owner", createScopedLogger("attention-test")))
+      .counts.messages,
+  ).toBe(0);
+});
+it("checks all conversation pages and unread message pages", async () => {
+  const chat = {
+    id: "chat",
+    title: "Sample chat",
+    accountID: "whatsapp",
+    network: "WhatsApp",
+    type: "single",
+    unreadCount: 1,
+  };
+  mocks.chats
+    .mockResolvedValueOnce({
+      items: [],
+      hasMore: true,
+      oldestCursor: "next-chats",
+    })
+    .mockResolvedValueOnce({ items: [chat], hasMore: false });
+  mocks.messages
+    .mockResolvedValueOnce({
+      items: [
+        {
+          id: "outgoing",
+          isSender: true,
+          timestamp: new Date(now - 1000).toISOString(),
+        },
+      ],
+      hasMore: true,
+      oldestCursor: "next-messages",
+    })
+    .mockResolvedValueOnce({
+      items: [
+        {
+          id: "incoming",
+          chatID: "chat",
+          timestamp: new Date(now - 2000).toISOString(),
+          isUnread: true,
+        },
+      ],
+      hasMore: false,
+    });
+  const result = await collectAttention(
+    "owner",
+    createScopedLogger("attention-test"),
+  );
+  expect(result.counts.messages).toBe(1);
+  expect(mocks.chats.mock.calls[1][0].cursor).toBe("next-chats");
+  expect(mocks.messages.mock.calls[1][1].cursor).toBe("next-messages");
+});
+it("excludes muted chats and already read conversations from live notification checks", async () => {
+  const chat = {
+    id: "chat",
+    network: "WhatsApp",
+    accountID: "whatsapp",
+    type: "single",
+  };
+  mocks.chats.mockResolvedValue({
+    items: [
+      { ...chat, unreadCount: 1, isMuted: true },
+      { ...chat, id: "read-chat", unreadCount: 0 },
+    ],
+    hasMore: false,
+  });
+  expect(
+    (await collectAttention("owner", createScopedLogger("attention-test")))
+      .counts.messages,
+  ).toBe(0);
+  expect(mocks.messages).not.toHaveBeenCalled();
+});
+it("keeps the message checkpoint on a failed live feed so the next poll catches up", async () => {
+  mocks.state.checkpoints.messages = now - 30_000;
+  mocks.messages.mockRejectedValue(new Error("Beeper unavailable"));
+  const result = await collectAttention(
+    "owner",
+    createScopedLogger("attention-test"),
+  );
+  expect(result.errors).toContain(
+    "Messages notification source is temporarily unavailable.",
+  );
+  expect(mocks.state.checkpoints.messages).toBe(now - 30_000);
 });

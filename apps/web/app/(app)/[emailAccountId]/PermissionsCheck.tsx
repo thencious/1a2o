@@ -84,10 +84,16 @@ export function PermissionsCheck() {
 
   return (
     <AppAlertBanner
+      variant="warning"
       title="Mailbox permissions required"
       description="Reconnect this mailbox and approve the requested permissions. Your current workspace remains available."
       action={
-        <Button asChild variant="red" size="sm">
+        <Button
+          asChild
+          variant="ghost"
+          size="xs"
+          className="text-inherit underline"
+        >
           <Link href={prefixPath(emailAccountId, "/permissions/consent")}>
             Reconnect mailbox
           </Link>

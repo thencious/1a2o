@@ -1,15 +1,14 @@
 "use client";
 import { newsletterKey } from "./identity";
+import { requestSenderUnsubscribe } from "@/utils/senders/client-unsubscribe";
+import type { AutomaticUnsubscribeResult } from "@/utils/senders/unsubscribe";
 
 import { useCallback, useState, useEffect } from "react";
 import { toast } from "sonner";
 import { useLocalStorage } from "usehooks-ts";
 import type { PostHog } from "posthog-js/react";
 import { toastSuccess } from "@/components/Toast";
-import {
-  setSenderStatusAction,
-  unsubscribeSenderAction,
-} from "@/utils/actions/unsubscriber";
+import { setSenderStatusAction } from "@/utils/actions/unsubscriber";
 import { decrementUnsubscribeCreditAction } from "@/utils/actions/premium";
 import { NewsletterStatus } from "@/generated/prisma/enums";
 import {
@@ -47,7 +46,14 @@ type MutateFn = (
 
 type QueueArchiveSendersFn = (params: { senders: string[] }) => Promise<number>;
 
+export type BulkUnsubscribeFailure = {
+  sender: string;
+  message: string;
+  url?: string;
+};
+
 type BulkOperationResult = {
+  failures: BulkUnsubscribeFailure[];
   stoppedByRateLimit: boolean;
   total: number;
   successCount: number;
@@ -116,6 +122,7 @@ async function executeBulkOperation<T extends Row>({
 
   let completed = 0;
   let failureCount = 0;
+  const failures: BulkUnsubscribeFailure[] = [];
   let rateLimitError: EmailProviderRateLimitError | undefined;
 
   const updateItemOptimistically = (item: T) => {
@@ -142,13 +149,20 @@ async function executeBulkOperation<T extends Row>({
   };
 
   for (const item of items) {
-    updateItemOptimistically(item);
-
     try {
       await processItem(item);
+      updateItemOptimistically(item);
       onDeselectItem?.(newsletterKey(item));
     } catch (error) {
       failureCount++;
+      failures.push({
+        sender: item.name,
+        message:
+          error instanceof Error
+            ? error.message
+            : "Could not complete this sender.",
+        url: getManualUnsubscribeLink(item.unsubscribeLink),
+      });
       if (error instanceof EmailProviderRateLimitError) {
         rateLimitError = error;
       } else if (!(error instanceof AutomaticUnsubscribeFailedError)) {
@@ -187,6 +201,7 @@ async function executeBulkOperation<T extends Row>({
     });
     return {
       stoppedByRateLimit: true,
+      failures,
       total,
       successCount: successful,
       failureCount,
@@ -199,7 +214,7 @@ async function executeBulkOperation<T extends Row>({
       `${errorMessage} ${failureCount} ${pluralize(failureCount, "sender")}`,
       {
         id: toastId,
-        description: `${total - failureCount} of ${total} succeeded`,
+        description: `${total - failureCount} of ${total} succeeded. ${failures[0]?.message || ""}`,
       },
     );
   } else {
@@ -212,6 +227,7 @@ async function executeBulkOperation<T extends Row>({
 
   return {
     stoppedByRateLimit: false,
+    failures,
     total,
     successCount: total - failureCount,
     failureCount,
@@ -391,10 +407,16 @@ export function useUnsubscribe<T extends Row>({
       if (error instanceof EmailProviderRateLimitError) {
         toast.error(error.message, { action: openPageAction });
       } else {
-        captureException(error);
-        toast.error(`Could not unsubscribe from ${item.name}`, {
-          action: openPageAction,
-        });
+        if (!(error instanceof AutomaticUnsubscribeFailedError))
+          captureException(error);
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : `Could not unsubscribe from ${item.name}`,
+          {
+            action: openPageAction,
+          },
+        );
       }
     } finally {
       setUnsubscribeLoading(false);
@@ -453,6 +475,9 @@ export function useBulkUnsubscribe<T extends Row>({
   const { queueArchiveSenders } = useArchiveSenderQueueActions(emailAccountId);
   const [archiveOnUnsubscribe] = useArchiveOnUnsubscribe();
 
+  const [failedUnsubscribes, setFailedUnsubscribes] = useState<
+    BulkUnsubscribeFailure[]
+  >([]);
   const onBulkUnsubscribe = useCallback(
     async (items: T[]) => {
       if (!hasUnsubscribeAccess) {
@@ -463,6 +488,7 @@ export function useBulkUnsubscribe<T extends Row>({
           failureCount: items.length,
         };
       }
+      setFailedUnsubscribes([]);
       posthog.capture("Clicked Bulk Unsubscribe");
       analytics.captureAction("bulk_unsubscribe_started", {
         item_count: items.length,
@@ -521,7 +547,8 @@ export function useBulkUnsubscribe<T extends Row>({
         onCompleteRevalidates: true,
         onSuccess: () => onSuccess?.(items),
       });
-      if (result.stoppedByRateLimit) return;
+      setFailedUnsubscribes(result.failures);
+      if (result.stoppedByRateLimit) return result;
 
       analytics.captureAction("bulk_unsubscribe_completed", {
         item_count: items.length,
@@ -546,7 +573,11 @@ export function useBulkUnsubscribe<T extends Row>({
     ],
   );
 
-  return { onBulkUnsubscribe };
+  return {
+    onBulkUnsubscribe,
+    failedUnsubscribes,
+    clearUnsubscribeFailures: () => setFailedUnsubscribes([]),
+  };
 }
 
 async function autoArchive({
@@ -1216,31 +1247,14 @@ export function useNewsletterFilter() {
   };
 }
 
-function didAutomaticUnsubscribeSucceed(
-  result: Awaited<ReturnType<typeof unsubscribeSenderAction>>,
-) {
-  if (result?.serverError) {
-    assertActionSucceeded({ serverError: result.serverError });
-  }
-
-  return result?.data?.unsubscribe.success === true;
-}
-
-async function performAutomaticUnsubscribe({
-  emailAccountId,
-  senderEmail,
-  unsubscribeLink,
-}: {
+async function performAutomaticUnsubscribe(input: {
   emailAccountId: string;
   senderEmail: string;
   unsubscribeLink?: string | null;
 }) {
-  const unsubscribeResult = await unsubscribeSenderAction(emailAccountId, {
-    senderEmail,
-    unsubscribeLink,
-  });
-
-  return didAutomaticUnsubscribeSucceed(unsubscribeResult);
+  const result = await requestSenderUnsubscribe(input);
+  if (!result.success) throw new AutomaticUnsubscribeFailedError(result);
+  return true;
 }
 
 function getAutomaticUnsubscribeLink(unsubscribeLink?: string | null) {
@@ -1319,8 +1333,18 @@ function getBulkActionErrorMessage(error: unknown, fallback: string) {
 // An expected outcome (the sender's endpoint rejected or needs a person), not
 // a bug: the server logs the reason and the toast reports the failure count.
 class AutomaticUnsubscribeFailedError extends Error {
-  constructor() {
-    super("Automatic unsubscribe did not succeed");
+  constructor(result?: AutomaticUnsubscribeResult) {
+    super(
+      result?.reason === "request_timeout"
+        ? "The sender website timed out. Try again later."
+        : result?.reason === "no_unsubscribe_url"
+          ? "No working unsubscribe link was found."
+          : result?.reason === "unsafe_unsubscribe_url"
+            ? "The unsubscribe link could not be used safely."
+            : result?.statusCode
+              ? `The sender website returned HTTP ${result.statusCode}. Open its unsubscribe page to finish.`
+              : "Automatic unsubscribe could not be confirmed. Open the sender unsubscribe page to finish.",
+    );
     this.name = "AutomaticUnsubscribeFailedError";
   }
 }

@@ -1,11 +1,12 @@
 import prisma from "@/utils/prisma";
-import { SafeError } from "@/utils/error";
+import { isInvalidGrantError, SafeError } from "@/utils/error";
 import type { Logger } from "@/utils/logger";
 import { createMonthProvider, type MonthProvider } from "./month-provider";
 import { calendarIdentity, deduplicateCalendars } from "./month-utils";
 import type { CalendarMonth, MonthCalendar } from "./month-types";
 import type { SaveMonthEvent } from "@/utils/actions/calendar-month.validation";
 import { getCalendarDefaults } from "./defaults-store";
+import { markCalendarAuthorizationExpired } from "./mark-authorization-expired";
 
 export async function getCalendarCatalog(userId: string, logger: Logger) {
   const { calendars, warnings } = await discoverCalendars(userId, logger);
@@ -156,7 +157,7 @@ async function calendarWrite<T>(write: () => Promise<T>) {
 
 async function discoverCalendars(userId: string, logger: Logger) {
   const connections = await prisma.calendarConnection.findMany({
-    where: { emailAccount: { userId }, isConnected: true },
+    where: { emailAccount: { userId } },
     orderBy: { updatedAt: "desc" },
     select: {
       id: true,
@@ -166,6 +167,7 @@ async function discoverCalendars(userId: string, logger: Logger) {
       accessToken: true,
       refreshToken: true,
       expiresAt: true,
+      isConnected: true,
     },
   });
   // Keep backup credentials: the latest-updated copy can contain a revoked grant.
@@ -187,14 +189,24 @@ async function discoverCalendars(userId: string, logger: Logger) {
     [];
   await Promise.all(
     groups.map(async (copies) => {
-      for (const connection of copies) {
+      const active = copies.filter(
+        (connection) => connection.isConnected && connection.refreshToken,
+      );
+      for (const connection of active) {
         try {
           const provider = await createMonthProvider(connection, logger);
           const listed = await provider.calendars();
           providers.set(connection.id, provider);
           calendars.push(...listed);
           return;
-        } catch {
+        } catch (error) {
+          if (isInvalidGrantError(error)) {
+            await markCalendarAuthorizationExpired({
+              ...connection,
+              connectionId: connection.id,
+              logger,
+            });
+          }
           logger.warn(
             "Unified calendar connection failed; trying remaining copies",
             {
@@ -208,7 +220,9 @@ async function discoverCalendars(userId: string, logger: Logger) {
         email: copies[0].email,
       });
       warnings.push(
-        `${copies[0].email}: calendar access failed. Reconnect this account in calendar settings.`,
+        active.length
+          ? `${copies[0].email}: calendar data could not be loaded. Retrying automatically.`
+          : `${copies[0].email}: reconnect this calendar account in settings.`,
       );
     }),
   );

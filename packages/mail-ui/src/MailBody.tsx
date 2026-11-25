@@ -291,9 +291,11 @@ export function buildMailHtmlDocument({
         color: hsl(var(--foreground)) !important;
         background: hsl(var(--background)) !important;
       }
-      .dark body *:not(img):not(svg):not(svg *) {
+      .dark body *:not(svg):not(svg *) {
         color: inherit !important;
-        background-color: transparent !important;
+        background: transparent !important;
+        -webkit-text-fill-color: currentColor !important;
+        text-shadow: none !important;
       }
       .dark body blockquote, .dark body .gmail_quote {
         color: hsl(var(--muted-foreground)) !important;
@@ -565,7 +567,13 @@ function useMailHtmlFrame(
         body.scrollHeight,
         Math.ceil(documentElement.getBoundingClientRect().height),
       );
-      if (newHeight) setMeasurement({ documentKey, height: newHeight });
+      if (newHeight) {
+        setMeasurement((current) =>
+          current?.documentKey === documentKey && current.height === newHeight
+            ? current
+            : { documentKey, height: newHeight },
+        );
+      }
     };
 
     const resizeObserver = new ResizeObserver(updateHeight);
@@ -663,6 +671,7 @@ function buildStructuredMailHtmlDocument({
     disableAuthoredDarkColorScheme(mailDocument);
   }
 
+  if (isDarkMode) applyDarkMailPalette(mailDocument, darkBackgroundHsl);
   prependMailDocumentHead(mailDocument, {
     documentKey,
     isDarkMode,
@@ -670,7 +679,6 @@ function buildStructuredMailHtmlDocument({
     defaultFontCss,
   });
   applyDarkModeClass(mailDocument, isDarkMode);
-  if (isDarkMode) applyDarkMailPalette(mailDocument, darkBackgroundHsl);
 
   return `<!doctype html>
 ${mailDocument.documentElement.outerHTML}`;
@@ -747,8 +755,12 @@ function applyDarkMailPalette(mailDocument: Document, background: string) {
   root.style.setProperty("--foreground", "220 8% 92%", "important");
   root.style.setProperty("background", `hsl(${background})`, "important");
   root.style.setProperty("color-scheme", "dark", "important");
+  // Without a sender stylesheet, the reader CSS covers unstyled elements.
+  // Applying inline overrides to those elements would only inflate srcdoc.
+  const hasAuthoredStylesheet = Boolean(mailDocument.querySelector("style"));
+  const inlineOverrides = hasAuthoredStylesheet ? "body *" : "body [style]";
   for (const element of mailDocument.querySelectorAll<HTMLElement>(
-    "body, body *",
+    inlineOverrides,
   )) {
     if (!element.style || element.closest("svg")) continue;
     element.style.setProperty("background", "transparent", "important");
@@ -772,4 +784,10 @@ function applyDarkMailPalette(mailDocument: Document, background: string) {
     "important",
   );
   mailDocument.body.style.setProperty("color", "hsl(220 8% 92%)", "important");
+  mailDocument.body.style.setProperty(
+    "-webkit-text-fill-color",
+    "currentColor",
+    "important",
+  );
+  mailDocument.body.style.setProperty("text-shadow", "none", "important");
 }

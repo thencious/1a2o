@@ -200,3 +200,75 @@ it("creates date-only tasks as all-day events with an exclusive end date", async
     "2026-11-03T08:00:00.000Z",
   ]);
 });
+
+it("asks for a calendar on first use without writing an event", async () => {
+  mocks.state.defaultCalendar = null;
+  expect(await syncTodoCalendar("owner", "task", logger)).toMatchObject({
+    kind: "needs-calendar",
+    taskId: "task",
+  });
+  expect(mocks.save).not.toHaveBeenCalled();
+  expect(mocks.month).not.toHaveBeenCalled();
+});
+it("remembers a calendar per task while asking separately for each new task", async () => {
+  mocks.state.calendarMode = "ask";
+  expect((await syncTodoCalendar("owner", "task", logger)).kind).toBe(
+    "needs-calendar",
+  );
+  const target = { connectionId: "other", calendarId: "chosen" };
+  expect(
+    (await syncTodoCalendar("owner", "task", logger, undefined, target)).kind,
+  ).toBe("created");
+  expect(mocks.save.mock.calls[0][1]).toMatchObject(target);
+  expect((await syncTodoCalendar("owner", "task", logger)).kind).toBe(
+    "unchanged",
+  );
+  mocks.tasks.push({ ...structuredClone(task), id: "new-task" });
+  expect((await syncTodoCalendar("owner", "new-task", logger)).kind).toBe(
+    "needs-calendar",
+  );
+  expect(mocks.state.defaultCalendar.calendarId).toBe("primary");
+});
+it("checks duplicates before adding to a manually chosen calendar and retains the choice through review", async () => {
+  mocks.state.calendarMode = "ask";
+  mocks.month.mockResolvedValue({
+    calendars: [calendar],
+    events: [event],
+    warnings: [],
+  });
+  const target = { connectionId: "chosen", calendarId: "selected" };
+  const result = await syncTodoCalendar(
+    "owner",
+    "task",
+    logger,
+    undefined,
+    target,
+  );
+  expect(result.kind).toBe("duplicate");
+  expect(mocks.save).not.toHaveBeenCalled();
+  if (result.kind !== "duplicate") throw new Error("Expected review");
+  await syncTodoCalendar("owner", "task", logger, {
+    hash: result.prompt.proposal.hash,
+    decision: "create",
+  });
+  expect(mocks.save.mock.calls[0][1]).toMatchObject(target);
+});
+it("distinguishes disabled calendar creation from missing calendar setup", async () => {
+  mocks.state.calendarMode = "off";
+  expect(await syncTodoCalendar("owner", "task", logger)).toMatchObject({
+    kind: "disabled",
+    reason: "off",
+  });
+  expect(mocks.save).not.toHaveBeenCalled();
+});
+it("rejects an unwritable calendar before persisting a per-task choice", async () => {
+  mocks.target.mockRejectedValue(new Error("Read only"));
+  await expect(
+    syncTodoCalendar("owner", "task", logger, undefined, {
+      connectionId: "x",
+      calendarId: "y",
+    }),
+  ).rejects.toThrow("Read only");
+  expect(mocks.state.taskCalendars).toBeUndefined();
+  expect(mocks.save).not.toHaveBeenCalled();
+});

@@ -155,7 +155,55 @@
     );
     channel?.postMessage({ workspace });
   }
+  async function backendOwnsSync(workspace) {
+    try {
+      const response = await fetch("/api/user/todo/sync", {
+        credentials: "same-origin",
+        cache: "no-store",
+        signal: AbortSignal.timeout(2500),
+      });
+      if (!response.ok) return false;
+      const status = await response.json();
+      if (
+        !status.enabled ||
+        !status.checkedAt ||
+        Date.now() - status.checkedAt > 45_000
+      )
+        return false;
+      // The host worker is the only cloud writer while it is available.
+      // Direct encrypted sync remains available when the host is offline.
+      report(workspace, "pending");
+      try {
+        const snapshotResponse = await fetch(
+          `/api/user/todo/state?workspace=${workspace}`,
+          {
+            credentials: "same-origin",
+            cache: "no-store",
+            signal: AbortSignal.timeout(2500),
+          },
+        );
+        if (snapshotResponse.ok) {
+          const snapshot = await snapshotResponse.json();
+          const worker = status.workspaces?.[workspace];
+          const payload = JSON.stringify(items(workspace));
+          if (
+            worker?.revision === snapshot.revision &&
+            !worker.pending &&
+            !worker.error &&
+            payload === JSON.stringify(snapshot.tasks)
+          )
+            report(workspace, "synced", payload);
+        }
+      } catch {
+        /* An unavailable snapshot must not start a second cloud writer. */
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  }
   async function synchronize(workspace) {
+    if (await backendOwnsSync(workspace)) return;
     if (!connection) await refreshConnection();
     if (!connection || !crypto.subtle) return;
     const { key, baseline, dirty } = definitions[workspace];

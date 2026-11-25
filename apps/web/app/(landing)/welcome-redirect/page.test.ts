@@ -40,8 +40,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("@/utils/account", () => ({
-  redirectToEmailAccountPath: (path: string) =>
-    mocks.redirectToEmailAccountPath(path),
+  redirectToEmailAccountPath: mocks.redirectToEmailAccountPath,
 }));
 
 vi.mock("@/env", () => ({
@@ -54,7 +53,31 @@ import WelcomeRedirectPage from "./page";
 describe("WelcomeRedirectPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.env.NEXT_PUBLIC_BYPASS_PREMIUM_CHECKS = false;
     mocks.auth.mockResolvedValue({ user: { id: "user-1" } });
+  });
+
+  it("sends new self-hosted users straight to account permissions", async () => {
+    mocks.env.NEXT_PUBLIC_BYPASS_PREMIUM_CHECKS = true;
+    mocks.findUser.mockResolvedValue({ completedOnboardingAt: null });
+
+    await expect(
+      WelcomeRedirectPage({ searchParams: Promise.resolve({}) }),
+    ).rejects.toThrow("redirect:/accounts");
+    expect(mocks.findPremium).not.toHaveBeenCalled();
+  });
+
+  it("opens All inboxes after self-hosted onboarding is complete", async () => {
+    mocks.env.NEXT_PUBLIC_BYPASS_PREMIUM_CHECKS = true;
+    mocks.findUser.mockResolvedValue({ completedOnboardingAt: new Date() });
+
+    await expect(
+      WelcomeRedirectPage({ searchParams: Promise.resolve({}) }),
+    ).rejects.toThrow("account-redirect:/mail");
+    expect(mocks.redirectToEmailAccountPath).toHaveBeenCalledWith("/mail", {
+      accountScope: "all",
+      split: "all",
+    });
   });
 
   it("sends completed web users to automation without loading premium", async () => {

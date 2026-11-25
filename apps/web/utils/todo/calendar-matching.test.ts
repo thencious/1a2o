@@ -36,7 +36,7 @@ it("converts task wall times in the sender timezone and scans the correct local 
     end: "2026-11-02T08:00:00.000Z",
   });
 });
-it("uses all-day dates and rejects completed, malformed or manually overridden tasks", () => {
+it("uses all-day dates and rejects completed, malformed or cleared deadlines", () => {
   expect(taskCalendarProposal({ ...task, completedAt: 2 })).toBeNull();
   expect(taskCalendarProposal({ ...task, deadlineOverride: true })).toBeNull();
   expect(
@@ -80,4 +80,24 @@ it("matches normalized and reordered titles without treating unrelated overlappi
       end: proposal.end,
     }),
   ).toBe(false);
+});
+
+it("uses manually edited deadlines instead of stale AI evidence and respects calendar rules", () => {
+  const manual = {
+    ...task,
+    deadlineOverride: true,
+    deadline: { at: Date.parse("2026-11-05T18:00:00Z") },
+  };
+  expect(
+    taskCalendarProposal(manual, undefined, "America/Los_Angeles"),
+  ).toMatchObject({
+    start: "2026-11-05T18:00:00.000Z",
+    end: "2026-11-05T18:15:00.000Z",
+    title: task.title,
+    kind: "deadline",
+  });
+  expect(taskCalendarProposal({ ...manual, deadline: null })).toBeNull();
+  expect(
+    taskCalendarProposal(manual, { calendarTimed: false } as any),
+  ).toBeNull();
 });

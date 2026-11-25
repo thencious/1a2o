@@ -1,4 +1,4 @@
-import { after } from "next/server";
+import { after, NextResponse } from "next/server";
 import { clearAccountDisconnectedErrorIfResolved } from "@/utils/error-messages";
 import { env } from "@/env";
 import { auth } from "@/utils/auth";
@@ -6,6 +6,8 @@ import { hash } from "@/utils/hash";
 import prisma from "@/utils/prisma";
 import { getLinkingOAuth2Client } from "@/utils/gmail/client";
 import { GOOGLE_LINKING_STATE_COOKIE_NAME } from "@/utils/gmail/constants";
+import { createGoogleMailboxAuthorization } from "@/utils/gmail/mailbox-authorization";
+import { oauthStateCookieOptions } from "@/utils/oauth/state";
 import { withError } from "@/utils/middleware";
 import { validateOAuthCallback } from "@/utils/oauth/callback-validation";
 import { createAccountLinkingRedirect } from "@/utils/oauth/account-linking-redirect";
@@ -36,6 +38,7 @@ import { ensureEmailAccountsWatched } from "@/utils/email/watch-manager";
 import { isGoogleCalendarCallback } from "@/utils/calendar/shared-oauth-callback";
 import { handleCalendarCallback } from "@/utils/calendar/handle-calendar-callback";
 import { createGoogleCalendarProvider } from "@/utils/calendar/providers/google";
+import { connectCalendarFromMailboxGrant } from "@/utils/calendar/mailbox-grant";
 
 export const GET = withError("google/linking/callback", async (request) => {
   if (isGoogleCalendarCallback(request)) {
@@ -71,8 +74,13 @@ export const GET = withError("google/linking/callback", async (request) => {
     return validation.response;
   }
 
-  const { targetUserId, code, stateNonce, reconnectEmailAccountId } =
-    validation;
+  const {
+    targetUserId,
+    code,
+    stateNonce,
+    reconnectEmailAccountId,
+    forceConsent,
+  } = validation;
   logger = logOAuthLinkingCallbackValidation({
     actorUserId,
     logger,
@@ -142,6 +150,7 @@ export const GET = withError("google/linking/callback", async (request) => {
       select: {
         id: true,
         userId: true,
+        refresh_token: true,
         user: { select: { name: true, email: true } },
         emailAccount: true,
       },
@@ -177,6 +186,30 @@ export const GET = withError("google/linking/callback", async (request) => {
     if (linkingResult.type === "redirect") {
       linkingResult.response.cookies.delete(GOOGLE_LINKING_STATE_COOKIE_NAME);
       return linkingResult.response;
+    }
+
+    if (reconnectEmailAccountId && !tokens.refresh_token) {
+      if (!forceConsent) {
+        const retry = createGoogleMailboxAuthorization({
+          userId: targetUserId,
+          reconnectTarget: {
+            id: reconnectEmailAccountId,
+            email: providerEmail,
+          },
+          forceConsent: true,
+        });
+        const response = NextResponse.redirect(retry.url);
+        response.cookies.set(
+          GOOGLE_LINKING_STATE_COOKIE_NAME,
+          retry.state,
+          oauthStateCookieOptions,
+        );
+        return response;
+      }
+      if (!existingAccount?.refresh_token)
+        throw new SafeError(
+          "Google did not return access for background sync.",
+        );
     }
 
     if (linkingResult.type === "update_existing_account") {
@@ -281,6 +314,12 @@ export const GET = withError("google/linking/callback", async (request) => {
           },
         });
 
+        await connectCalendarFromMailboxGrant({
+          accountId: newAccount.id,
+          provider: "google",
+          grantedScope: tokens.scope,
+          logger,
+        });
         logger.info("Successfully created and linked new Google account", {
           email: providerEmail,
           targetUserId,
@@ -502,6 +541,12 @@ async function updateGoogleAccount({
       token_type: tokens.token_type,
       id_token: tokens.id_token,
     },
+  });
+
+  await connectCalendarFromMailboxGrant({
+    accountId,
+    provider: "google",
+    grantedScope: tokens.scope,
   });
 }
 

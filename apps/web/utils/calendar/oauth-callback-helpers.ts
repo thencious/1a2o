@@ -8,6 +8,7 @@ import {
 } from "@/utils/calendar/constants";
 import { validateSignedOAuthState } from "@/utils/oauth/state";
 import { normalizeInternalPath } from "@/utils/path";
+import { FIRST_RUN_CALENDAR_RETURN_PATH } from "@/utils/config";
 import { calendarSettingsPath } from "./settings-path";
 import { env } from "@/env";
 import type { Logger } from "@/utils/logger";
@@ -160,6 +161,7 @@ export function getCalendarRedirectPath(
 
   const internalPath = normalizeInternalPath(decodedPath);
   if (!internalPath) return defaultPath;
+  if (internalPath === FIRST_RUN_CALENDAR_RETURN_PATH) return internalPath;
 
   // Normalize to prevent path traversal (e.g. /acc_123/../acc_456/briefs)
   const normalizedUrl = new URL(internalPath, env.NEXT_PUBLIC_BASE_URL);

@@ -139,10 +139,25 @@ describe("outlook client emulator configuration", () => {
       "http://localhost:3000/api/outlook/linking/callback",
     );
     expect(url.searchParams.get("prompt")).toBe("consent");
-    expect(url.searchParams.get("scope")).toBe(
-      "openid profile email User.Read offline_access Mail.ReadWrite MailboxSettings.ReadWrite",
+    expect(url.searchParams.get("scope")?.split(" ")).toEqual(
+      expect.arrayContaining([
+        "offline_access",
+        "Mail.ReadWrite",
+        "MailboxSettings.ReadWrite",
+        "Calendars.Read",
+        "Calendars.ReadWrite",
+      ]),
     );
     expect(getMicrosoftOauthAuthorizeUrl).toHaveBeenCalledWith();
+  });
+
+  it("lets Microsoft reuse the browser session for a targeted reconnect", () => {
+    const url = new URL(getLinkingOAuth2Url({ loginHint: "mail@example.com" }));
+    expect(url.searchParams.get("login_hint")).toBe("mail@example.com");
+    expect(url.searchParams.has("prompt")).toBe(false);
+    expect(url.searchParams.get("scope")?.split(" ")).toContain(
+      "offline_access",
+    );
   });
 
   it("saves refreshed Outlook tokens with optimistic concurrency", async () => {

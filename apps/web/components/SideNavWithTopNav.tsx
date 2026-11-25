@@ -32,7 +32,7 @@ function ContentWrapper({ children }: { children: React.ReactNode }) {
   const pathname = useVisibleWorkspacePathname();
   const isAssistantRoute = pathname?.includes("/assistant");
   const isMailRoute = pathname?.includes("/mail");
-  const isAgentsRoute =
+  const isFullHeightRoute =
     pathname?.includes("/agents") ||
     pathname?.includes("/messages") ||
     pathname?.includes("/contacts") ||
@@ -59,10 +59,9 @@ function ContentWrapper({ children }: { children: React.ReactNode }) {
           // stops sticky descendants from sticking to the page scroll
           "overflow-clip bg-background pt-9 max-w-full",
           noTopPadding && "pt-0",
-          isAgentsRoute && "lg:pt-0",
-          // The mail page fills the viewport and scrolls its thread list
-          // internally, so layout banners shrink it instead of overflowing
-          isMailRoute && "h-svh",
+          isFullHeightRoute && "lg:pt-0",
+          (isMailRoute || isAssistantRoute || isFullHeightRoute) &&
+            "h-dvh min-h-0",
         )}
       >
         {children}

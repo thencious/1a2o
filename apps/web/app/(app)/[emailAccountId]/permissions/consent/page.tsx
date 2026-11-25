@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useParams } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -9,22 +10,40 @@ import { useAccount } from "@/providers/EmailAccountProvider";
 import { toastError } from "@/components/Toast";
 import { getAccountLinkingUrl } from "@/utils/account-linking";
 import { BRAND_NAME } from "@/utils/branding";
-import { redirectToSafeUrl } from "@/utils/redirect";
+import { getSafeRedirectUrl } from "@/utils/redirect";
 
 export default function PermissionsConsentPage() {
-  const { emailAccountId, provider, isLoading: accountLoading } = useAccount();
+  const {
+    emailAccountId,
+    userEmail,
+    provider,
+    isLoading: accountLoading,
+  } = useAccount();
+  const { emailAccountId: routeAccountId } = useParams<{
+    emailAccountId: string;
+  }>();
+  const startedFor = useRef<string>(null);
   const [isReconnecting, setIsReconnecting] = useState(false);
   const isMicrosoft = provider === "microsoft";
+  const canReconnect =
+    Boolean(emailAccountId) &&
+    emailAccountId === routeAccountId &&
+    (provider === "google" || isMicrosoft);
 
-  const handleReconnect = async () => {
+  const handleReconnect = useCallback(async () => {
+    if (!canReconnect || (provider !== "google" && provider !== "microsoft"))
+      return;
+    const reconnectPath = window.location.pathname;
     setIsReconnecting(true);
 
     try {
-      const accountProvider = provider === "microsoft" ? "microsoft" : "google";
-      const url = await getAccountLinkingUrl(accountProvider, {
+      const url = await getAccountLinkingUrl(provider, {
         reconnectEmailAccountId: emailAccountId,
       });
-      redirectToSafeUrl(url, { allowExternal: true });
+      if (window.location.pathname === reconnectPath)
+        window.location.replace(
+          getSafeRedirectUrl(url, { allowExternal: true }),
+        );
     } catch (error) {
       toastError({
         title: "Error initiating reconnection",
@@ -33,21 +52,30 @@ export default function PermissionsConsentPage() {
             ? error.message
             : "Please try again or contact support",
       });
-    } finally {
       setIsReconnecting(false);
     }
-  };
+  }, [canReconnect, emailAccountId, provider]);
+
+  useEffect(() => {
+    if (
+      accountLoading ||
+      !canReconnect ||
+      startedFor.current === emailAccountId
+    )
+      return;
+    startedFor.current = emailAccountId;
+    handleReconnect();
+  }, [accountLoading, canReconnect, emailAccountId, handleReconnect]);
 
   return (
     <div className="flex flex-col items-center justify-center sm:p-20 md:p-32">
-      <PageHeading className="text-center">
-        We are missing permissions 😔
-      </PageHeading>
+      <PageHeading className="text-center">Reconnect account</PageHeading>
 
       <TypographyP className="mx-auto mt-4 max-w-prose text-center">
-        {isMicrosoft
-          ? `Your Microsoft account is connected, but ${BRAND_NAME} is missing one or more required Microsoft 365 permissions.`
-          : `You must sign in and give access to all permissions for ${BRAND_NAME} to work.`}
+        {userEmail
+          ? `Approve access for ${userEmail}`
+          : "Approve access for this account"}{" "}
+        to sync mail and calendars together.
       </TypographyP>
 
       {isMicrosoft && (
@@ -56,17 +84,11 @@ export default function PermissionsConsentPage() {
           admin to approve {BRAND_NAME} and then reconnect your account.
         </TypographyP>
       )}
-      {!isMicrosoft && (
-        <TypographyP className="mx-auto mt-3 max-w-prose text-center text-muted-foreground">
-          Reconnect your account and approve every requested permission.
-        </TypographyP>
-      )}
-
       <Button
         className="mt-4"
         onClick={handleReconnect}
         loading={isReconnecting}
-        disabled={isReconnecting || accountLoading}
+        disabled={isReconnecting || accountLoading || !canReconnect}
       >
         Reconnect account
       </Button>

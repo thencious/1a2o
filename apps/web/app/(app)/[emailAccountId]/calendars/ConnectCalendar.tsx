@@ -19,12 +19,14 @@ export function ConnectCalendar({
   provider,
   editing = false,
   email,
+  label,
 }: {
   analyticsPage?: AppPage;
   onboardingReturnPath?: string;
   provider?: "google" | "microsoft";
   editing?: boolean;
   email?: string;
+  label?: string;
 }) {
   const { emailAccountId } = useAccount();
   const analytics = useProductAnalytics(analyticsPage);
@@ -37,7 +39,8 @@ export function ConnectCalendar({
 
   const setOnboardingReturnCookie = () => {
     if (onboardingReturnPath) {
-      document.cookie = `${CALENDAR_ONBOARDING_RETURN_COOKIE}=${encodeURIComponent(onboardingReturnPath)}; path=/; max-age=180; SameSite=Lax; Secure`;
+      const secure = location.protocol === "https:" ? "; Secure" : "";
+      document.cookie = `${CALENDAR_ONBOARDING_RETURN_COOKIE}=${encodeURIComponent(onboardingReturnPath)}; path=/; max-age=600; SameSite=Lax${secure}`;
     }
   };
 
@@ -117,7 +120,7 @@ export function ConnectCalendar({
         <Button
           aria-label={
             editing
-              ? `Enable editing for ${email ?? "Google Calendar"}`
+              ? `${label ?? "Enable editing"} for ${email ?? "Google Calendar"}`
               : undefined
           }
           onClick={handleConnectGoogle}
@@ -134,9 +137,7 @@ export function ConnectCalendar({
           />
           {isConnectingGoogle
             ? "Connecting..."
-            : editing
-              ? "Enable editing"
-              : "Add Google Calendar"}
+            : (label ?? (editing ? "Enable editing" : "Add Google Calendar"))}
         </Button>
       )}
 
@@ -144,7 +145,7 @@ export function ConnectCalendar({
         <Button
           aria-label={
             editing
-              ? `Enable editing for ${email ?? "Outlook Calendar"}`
+              ? `${label ?? "Enable editing"} for ${email ?? "Outlook Calendar"}`
               : undefined
           }
           onClick={handleConnectMicrosoft}
@@ -161,9 +162,7 @@ export function ConnectCalendar({
           />
           {isConnectingMicrosoft
             ? "Connecting..."
-            : editing
-              ? "Enable editing"
-              : "Add Outlook Calendar"}
+            : (label ?? (editing ? "Enable editing" : "Add Outlook Calendar"))}
         </Button>
       )}
     </div>

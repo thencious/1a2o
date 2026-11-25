@@ -14,7 +14,9 @@ export const IMAGE_PROXY_ORIGIN = IMAGE_PROXY_BASE_URL
 
 const IMAGE_PROXY_RENDER_ROUTE = "/api/email/render-html";
 const PREPARED_HTML_MAX_AGE_MS = 5 * 60 * 1000;
-const PREPARED_HTML_CACHE_SIZE = 20;
+const PREPARED_HTML_CACHE_SIZE = 50;
+const MAX_CACHED_HTML_LENGTH = 150_000;
+const sanitizedHtmlCache = new Map<string, string>();
 const preparedHtml = new Map<
   string,
   { sourceHtml: string; html: string; preparedAt: number }
@@ -25,7 +27,29 @@ const inFlightPreparation = new Map<
 >();
 
 export function sanitizeEmailHtml(html: string) {
-  return sanitizeMailHtml(stripSentMessageOpenPixels(html));
+  const cached = sanitizedHtmlCache.get(html);
+  if (cached !== undefined) {
+    sanitizedHtmlCache.delete(html);
+    sanitizedHtmlCache.set(html, cached);
+    return cached;
+  }
+  const sanitized = sanitizeMailHtml(stripSentMessageOpenPixels(html));
+  if (Math.max(html.length, sanitized.length) <= MAX_CACHED_HTML_LENGTH) {
+    sanitizedHtmlCache.set(html, sanitized);
+    if (sanitizedHtmlCache.size > PREPARED_HTML_CACHE_SIZE) {
+      const oldest = sanitizedHtmlCache.keys().next().value;
+      if (oldest !== undefined) sanitizedHtmlCache.delete(oldest);
+    }
+  }
+  return sanitized;
+}
+
+export function needsEmailImageProxy(sanitizedHtml: string) {
+  // Input is serialized by DOMPurify. Links in anchors do not load assets.
+  return (
+    Boolean(IMAGE_PROXY_BASE_URL) &&
+    /<style\b|\s(?:src|srcset|style|background|poster)=/i.test(sanitizedHtml)
+  );
 }
 
 export function getPreparedEmailHtml({
@@ -68,7 +92,7 @@ export function prepareSanitizedEmailHtml({
   messageId: string;
   sourceHtml: string;
 }) {
-  if (!IMAGE_PROXY_BASE_URL) return Promise.resolve(sourceHtml);
+  if (!needsEmailImageProxy(sourceHtml)) return Promise.resolve(sourceHtml);
 
   const cached = getPreparedEmailHtml({ messageId, sourceHtml });
   if (cached !== undefined) return Promise.resolve(cached);
@@ -83,6 +107,11 @@ export function prepareSanitizedEmailHtml({
         return renderedHtml;
       }
 
+      if (
+        Math.max(sourceHtml.length, renderedHtml.length) >
+        MAX_CACHED_HTML_LENGTH
+      )
+        return renderedHtml;
       preparedHtml.set(messageId, {
         sourceHtml,
         html: renderedHtml,
@@ -109,6 +138,7 @@ export function prepareSanitizedEmailHtml({
 async function rewriteHtmlWithProxy(html: string) {
   const response = await fetch(IMAGE_PROXY_RENDER_ROUTE, {
     method: "POST",
+    signal: AbortSignal.timeout(10_000),
     headers: {
       "content-type": "application/json",
     },

@@ -170,6 +170,13 @@ export async function listMessages(
     allowedReactions: chat.capabilities?.allowedReactions,
     cursor: page.oldestCursor,
     hasMore: page.hasMore,
+    scanned: [
+      {
+        chatId,
+        oldestTime: page.items.at(-1)?.timestamp ?? null,
+        hasMore: page.hasMore,
+      },
+    ],
   };
 }
 export async function getConversationMessage(
@@ -467,8 +474,7 @@ export async function sendMessage(
     attachment?: { name: string; mime: string; content: string };
   },
 ) {
-  const { client, chat } = await allowedChat(userId, input.chatId);
-  if (chat.isReadOnly) throw new SafeError("This conversation is read-only.");
+  const { client, chat } = await writableBeeperChat(userId, input.chatId);
   let text = input.text;
   if (input.mentions?.length) {
     const people = await mentionParticipants(userId, chat.id);
@@ -566,6 +572,13 @@ export async function sendMessage(
       "Delivery could not be confirmed. Check the conversation before trying again. Your draft is still here.",
     );
   }
+}
+
+export async function writableBeeperChat(userId: string, chatId: string) {
+  const result = await allowedChat(userId, chatId);
+  if (result.chat.isReadOnly)
+    throw new SafeError("This conversation is read-only.");
+  return result;
 }
 export async function messageAsset(
   userId: string,

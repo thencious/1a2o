@@ -64,6 +64,7 @@ import {
 } from "@/utils/actions/beeper.validation";
 import { addConversationContacts } from "@/utils/messages/add-contacts-service";
 import { prepareConversationInvite } from "@/utils/messages/invite-service";
+import { scheduleConversationMessage } from "@/utils/messages/scheduled";
 import {
   getCalendarCatalog,
   getCalendarMonth,
@@ -495,7 +496,7 @@ export function zenroRegistry(userId: string, logger: Logger) {
     "settings",
     "Change task defaults, timezone and notification preferences. Preserve unspecified settings. Credentials can only be supplied by the user; never extract secrets from other sources.",
     true,
-    todoPreferences,
+    todoPreferences.omit({ calendarMode: true }),
     (input) => saveTodoPreferences(userId, input, logger),
   );
   add(
@@ -511,7 +512,7 @@ export function zenroRegistry(userId: string, logger: Logger) {
     "tasks",
     "Apply the user's explicit decision to a pending duplicate-event prompt. Use its hash and event details; do not invent a decision.",
     true,
-    todoCalendarChoice,
+    todoCalendarChoice.omit({ target: true }),
     (input) => syncTodoCalendar(userId, input.taskId, logger, input),
   );
   add(
@@ -556,10 +557,27 @@ export function zenroRegistry(userId: string, logger: Logger) {
   add(
     "messages.send",
     "messages",
-    "Send a new message or reply, including supported attachment data. This sends immediately: require a direct user instruction with a concrete recipient and content. Reuse requestId on retries, inspect receipt before resending. Read the target conversation first to disambiguate names and capability support.",
+    "Send a new message or reply immediately, including supported attachment data. Require a direct user instruction with a concrete recipient and content. For future delivery use messages.schedule. Reuse requestId on retries, inspect receipt before resending. Read the target conversation first to disambiguate names and capability support.",
     true,
     beeperSend,
     (input) => sendMessage(userId, input),
+  );
+  add(
+    "messages.schedule",
+    "messages",
+    "Queue an explicitly requested future text message. Use the original conversation ID when continuing a Messages command, and the original message text without the timing instructions. Use localTime in YYYY-MM-DDTHH:mm with the user's IANA time zone. If the date, time or destination is still ambiguous, ask. Provide a stable request UUID and reuse it on retries. Confirm scheduling only from the returned record.",
+    true,
+    beeperChat.extend({
+      requestId: z.uuid(),
+      text: z
+        .string()
+        .max(20_000)
+        .refine((value) => !!value.trim()),
+      localTime: z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/),
+      timezone: z.string().min(1).max(120),
+    }),
+    ({ requestId, ...input }) =>
+      scheduleConversationMessage({ ...input, id: requestId, userId }),
   );
   add(
     "messages.receipt",

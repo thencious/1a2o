@@ -63,8 +63,8 @@ export async function ensureBeeperSession(userId: string, manual = false) {
             "Beeper rejected the app connection. Reconnect its access token below; your saved recovery key stays encrypted.",
           );
         return result(
-          "connection-required",
-          "Connect Beeper's Desktop API below so 1a2o can check and verify its session.",
+          "offline",
+          "Beeper is temporarily unavailable. 1a2o will check the connection again.",
         );
       }
     },
@@ -76,6 +76,9 @@ export async function ensureBeeperSession(userId: string, manual = false) {
     checks.delete(userId);
     throw new Error("Beeper session check could not complete securely.");
   }
+}
+export function invalidateBeeperSessionStatus(userId: string) {
+  checks.delete(userId);
 }
 export async function saveBeeperRecoveryPreferences(
   userId: string,

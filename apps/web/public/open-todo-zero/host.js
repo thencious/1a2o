@@ -276,12 +276,135 @@
       "still.alerts.v1",
       JSON.stringify({ topic: preferences.ntfyTopic }),
     );
-  function calendarStatus(message) {
+  function calendarStatus(message, taskId, explain = false) {
     const element = document.getElementById("todo-calendar-status");
-    if (element) {
-      element.hidden = false;
-      element.textContent = message;
-    }
+    if (!element) return;
+    element.hidden = false;
+    element.textContent = message;
+    if (!explain) return;
+    const link = (label, href, activate) => {
+      const anchor = document.createElement("a");
+      anchor.textContent = label;
+      anchor.href = href;
+      anchor.onclick = (event) => {
+        event.preventDefault();
+        activate();
+      };
+      return anchor;
+    };
+    const rulesUrl = new URL(parent.location.href);
+    rulesUrl.pathname = `${rulesUrl.pathname.split("/todo")[0]}/automation`;
+    rulesUrl.search = "?domain=tasks";
+    rulesUrl.hash = "";
+    element.append(
+      " Check ",
+      link("task timing", "#due-date", () =>
+        window.dispatchEvent(
+          new CustomEvent("onea2o-task-timing", { detail: { taskId } }),
+        ),
+      ),
+      ", ",
+      link("rules", rulesUrl.href, () => parent.location.assign(rulesUrl.href)),
+      " and ",
+      link("default calendar", "#todo-default-calendar", () => {
+        document.getElementById("settings-open").click();
+        document
+          .getElementById("todo-default-calendar")
+          .scrollIntoView({ block: "center" });
+        document.getElementById("todo-calendar-mode").focus();
+      }),
+      ".",
+    );
+  }
+  async function writableCalendars() {
+    const response = await fetch("/api/user/calendar/catalog", {
+      cache: "no-store",
+    });
+    const data = await response.json();
+    if (!response.ok)
+      throw new Error(data.error || "Could not load calendars.");
+    return {
+      calendars: data.calendars.filter((item) => item.writable),
+      warnings: data.warnings || [],
+    };
+  }
+  function chooseCalendar(task) {
+    return new Promise((resolve) => {
+      const dialog = document.createElement("dialog");
+      dialog.className = "todo-calendar-picker";
+      dialog.setAttribute("aria-label", "Choose a calendar for this task");
+      dialog.innerHTML =
+        '<h2>Add task to a calendar</h2><p class="calendar-task-name"></p><p>Your task is saved. Choose where to add its deadline. We will check for existing events before adding it.</p><label>Calendar<select aria-label="Calendar for this task" required><option value="">Loading calendars...</option></select></label><label class="calendar-remember"><input type="checkbox" checked> Use this calendar by default for future tasks</label><p class="calendar-help">Uncheck to choose a calendar for each new task.</p><p role="status"></p><div class="settings-actions"><button type="button" data-action="cancel">Not now</button><button type="button" data-action="off">Keep tasks off calendar</button><button type="button" data-action="add" disabled>Add to calendar</button></div>';
+      dialog.querySelector(".calendar-task-name").textContent = task.title;
+      const select = dialog.querySelector("select"),
+        remember = dialog.querySelector("input"),
+        status = dialog.querySelector('[role="status"]'),
+        add = dialog.querySelector('[data-action="add"]');
+      remember.checked = preferences.calendarMode !== "ask";
+      let result = null;
+      select.onchange = () => {
+        add.disabled = !select.value;
+      };
+      dialog.querySelector('[data-action="cancel"]').onclick = () =>
+        dialog.close();
+      dialog.querySelector('[data-action="off"]').onclick = async (event) => {
+        event.target.disabled = true;
+        try {
+          await savePreferences({ calendarMode: "off" });
+          dialog.close();
+        } catch (error) {
+          status.textContent = error.message;
+          event.target.disabled = false;
+        }
+      };
+      add.onclick = async () => {
+        if (!select.value) return;
+        add.disabled = true;
+        try {
+          const target = JSON.parse(select.value);
+          await savePreferences(
+            remember.checked
+              ? { calendarMode: "default", defaultCalendar: target }
+              : { calendarMode: "ask" },
+          );
+          result = target;
+          dialog.close();
+        } catch (error) {
+          status.textContent = error.message;
+          add.disabled = false;
+        }
+      };
+      dialog.addEventListener(
+        "close",
+        () => {
+          dialog.remove();
+          resolve(result);
+        },
+        { once: true },
+      );
+      document.body.append(dialog);
+      dialog.showModal();
+      writableCalendars()
+        .then((data) => {
+          select.replaceChildren(new Option("Choose a calendar", ""));
+          for (const calendar of data.calendars)
+            select.add(
+              new Option(
+                `${calendar.name} (${calendar.accountEmail})`,
+                JSON.stringify({
+                  connectionId: calendar.connectionId,
+                  calendarId: calendar.calendarId,
+                }),
+              ),
+            );
+          status.textContent = data.calendars.length
+            ? data.warnings.join(" ")
+            : "No editable calendars found. Connect a calendar and enable editing in Settings.";
+        })
+        .catch((error) => {
+          status.textContent = error.message;
+        });
+    });
   }
   async function checkCalendars(tasks) {
     if (calendarBusy || busy || pending !== null) return;
@@ -290,27 +413,38 @@
       for (const task of tasks) {
         if (
           task.completedAt ||
-          task.aiState !== "success" ||
-          !["event", "deadline"].includes(
-            task.aiEvidence?.arguments?.calendar_kind,
-          )
+          (!task.deadlineOverride &&
+            (task.aiState !== "success" ||
+              !["event", "deadline"].includes(
+                task.aiEvidence?.arguments?.calendar_kind,
+              )))
         )
           continue;
         const policy = InboxTodoHost.policy();
         if (
-          task.aiEvidence.arguments.calendar_explicit_time
+          task.deadlineOverride ||
+          task.aiEvidence?.arguments?.calendar_explicit_time
             ? !policy.calendarTimed
             : !policy.calendarAllDay
         )
           continue;
         const signature = JSON.stringify([
           task.title,
-          task.aiEvidence.arguments,
+          task.aiEvidence?.arguments,
           task.deadlineOverride,
+          task.deadline,
         ]);
         if (checkedCalendars.get(task.id) === signature) continue;
         try {
-          const result = await call("calendar", { taskId: task.id });
+          let result = await call("calendar", { taskId: task.id });
+          if (result.kind === "needs-calendar") {
+            const target = await chooseCalendar(task);
+            if (!target) {
+              checkedCalendars.set(task.id, signature);
+              continue;
+            }
+            result = await call("calendar", { taskId: task.id, target });
+          }
           checkedCalendars.set(task.id, signature);
           calendarStatus(
             result.kind === "created"
@@ -318,8 +452,12 @@
               : result.kind === "duplicate"
                 ? "Calendar match found - review the update dialog."
                 : result.kind === "disabled"
-                  ? "No calendar event was added. Check task timing, rules and the default calendar."
+                  ? result.reason === "off"
+                    ? "Calendar creation is turned off."
+                    : "No calendar event was added."
                   : "Calendar checked.",
+            task.id,
+            result.kind === "disabled",
           );
         } catch (error) {
           calendarStatus(error.message || "Calendar check will retry.");
@@ -335,7 +473,10 @@
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     });
     Object.assign(preferences, input);
-    if (input.defaultCalendar !== undefined) {
+    if (
+      input.defaultCalendar !== undefined ||
+      input.calendarMode !== undefined
+    ) {
       checkedCalendars.clear();
       checkCalendars(JSON.parse(localStorage.getItem(taskKey) || "[]"));
     }
@@ -347,7 +488,7 @@
     heading.textContent = "Calendar";
     const area = document.createElement("div");
     area.innerHTML =
-      '<p>Automatically add AI-detected events and deadlines. Date-only tasks become all-day events. Existing events and tasks are checked before adding.</p><label for="todo-default-calendar">Default calendar for tasks</label><select id="todo-default-calendar"><option value="">Do not add automatically</option></select><div class="settings-actions"><button id="todo-save-calendar">Save calendar</button></div><p id="todo-calendar-settings-status" role="status"></p>';
+      '<p>Automatically add AI-detected events and deadlines. Date-only tasks become all-day events. Existing events and tasks are checked before adding.</p><label for="todo-calendar-mode">Task calendars</label><select id="todo-calendar-mode"><option value="default">Use a default calendar</option><option value="ask">Choose for each new task</option><option value="off">Keep tasks off calendar</option></select><label for="todo-default-calendar">Default calendar for tasks</label><select id="todo-default-calendar"><option value="">Choose a default calendar</option></select><div class="settings-actions"><button id="todo-save-calendar">Save calendar</button></div><p id="todo-calendar-settings-status" role="status"></p>';
     dialog.append(heading, area);
     const notice = document.createElement("p");
     notice.id = "todo-calendar-status";
@@ -355,6 +496,10 @@
     notice.setAttribute("role", "status");
     notice.style.cssText = "font-size:11px;color:#aaa;margin:0 0 8px";
     document.querySelector(".editor-box").before(notice);
+    const modeSelect = document.getElementById("todo-calendar-mode");
+    modeSelect.value =
+      preferences.calendarMode ||
+      (preferences.defaultCalendar ? "default" : "ask");
     const select = document.getElementById("todo-default-calendar"),
       status = document.getElementById("todo-calendar-settings-status");
     document
@@ -364,6 +509,9 @@
           preferences.ntfyTokenConfigured
             ? "Stored securely - leave blank to keep"
             : "Optional access token";
+        modeSelect.value =
+          preferences.calendarMode ||
+          (preferences.defaultCalendar ? "default" : "ask");
         status.textContent = "Loading calendars...";
         try {
           const response = await fetch("/api/user/calendar/catalog", {
@@ -372,7 +520,7 @@
             data = await response.json();
           if (!response.ok)
             throw new Error(data.error || "Could not load calendars.");
-          select.replaceChildren(new Option("Do not add automatically", ""));
+          select.replaceChildren(new Option("Choose a default calendar", ""));
           for (const calendar of data.calendars.filter((item) => item.writable))
             select.add(
               new Option(
@@ -406,7 +554,10 @@
       .addEventListener("click", async (event) => {
         event.target.disabled = true;
         try {
+          if (modeSelect.value === "default" && !select.value)
+            throw new Error("Choose a default calendar first.");
           await savePreferences({
+            calendarMode: modeSelect.value,
             defaultCalendar: select.value ? JSON.parse(select.value) : null,
           });
           status.textContent = "Default calendar saved.";

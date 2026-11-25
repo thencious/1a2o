@@ -10,12 +10,14 @@ import {
 import { buildLoginRedirectUrl, buildRedirectUrl } from "@/utils/redirect";
 import { createScopedLogger } from "@/utils/logger";
 import { flushLoggerSafely } from "@/utils/logger-flush";
+import { env } from "@/env";
 
 const logger = createScopedLogger("account-redirect");
 
 export async function redirectToEmailAccountPath(
   path: `/${string}`,
   searchParams?: Record<string, string | string[] | undefined>,
+  options?: { onboardNewUsers?: boolean },
 ) {
   const timing = createRedirectTiming(path, searchParams);
   const session = await measureRedirectStep(timing, "auth", () => auth());
@@ -28,6 +30,14 @@ export async function redirectToEmailAccountPath(
       foundEmailAccount: false,
     });
     redirect(buildLoginRedirectUrl(buildRedirectUrl(path, searchParams)));
+  }
+
+  if (options?.onboardNewUsers && env.NEXT_PUBLIC_BYPASS_PREMIUM_CHECKS) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { completedOnboardingAt: true },
+    });
+    if (user && !user.completedOnboardingAt) redirect("/accounts");
   }
 
   const lastEmailAccountId = await measureRedirectStep(

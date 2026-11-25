@@ -34,6 +34,20 @@ vi.mock("@/utils/actions/unsubscriber", () => ({
   unsubscribeSenderAction: unsubscribeSenderActionMock,
 }));
 
+vi.mock("@/utils/senders/client-unsubscribe", () => ({
+  requestSenderUnsubscribe: async (input: any) => {
+    const result = await unsubscribeSenderActionMock(input.emailAccountId, {
+      senderEmail: input.senderEmail,
+      unsubscribeLink: input.unsubscribeLink,
+    });
+    if (result?.serverError) {
+      const { assertActionSucceeded } = await import("@/utils/error");
+      assertActionSucceeded({ serverError: result.serverError });
+    }
+    return result?.data?.unsubscribe;
+  },
+}));
+
 vi.mock("@/utils/actions/premium", () => ({
   decrementUnsubscribeCreditAction: decrementCreditMock,
 }));
@@ -571,4 +585,41 @@ describe("cross-inbox bulk operations", () => {
     });
     expect(queueArchiveSendersMock).not.toHaveBeenCalled();
   });
+});
+
+it("keeps every rejected sender selected and reports the website reason without optimistic success", async () => {
+  unsubscribeSenderActionMock.mockResolvedValue({
+    data: {
+      unsubscribe: {
+        success: false,
+        statusCode: 403,
+        reason: "request_rejected",
+      },
+    },
+  });
+  const mutate = vi.fn(async () => {}),
+    onDeselectItem = vi.fn();
+  const { result } = renderHook(() =>
+    useBulkUnsubscribe({
+      ...sharedHookArgs,
+      mutate,
+      onDeselectItem,
+      filter: "unhandled",
+    }),
+  );
+  const items = Array.from({ length: 17 }, (_, i) =>
+    getRow({
+      name: `sender${i}@example.com`,
+      unsubscribeLink: `https://example.com/unsub/${i}`,
+    }),
+  );
+  let outcome: Awaited<ReturnType<typeof result.current.onBulkUnsubscribe>>;
+  await act(async () => {
+    outcome = await result.current.onBulkUnsubscribe(items);
+  });
+  expect(outcome).toMatchObject({ successCount: 0, failureCount: 17 });
+  expect(result.current.failedUnsubscribes).toHaveLength(17);
+  expect(result.current.failedUnsubscribes[0].message).toContain("HTTP 403");
+  expect(onDeselectItem).not.toHaveBeenCalled();
+  expect(mutate.mock.calls.every((call) => call.length === 0)).toBe(true);
 });

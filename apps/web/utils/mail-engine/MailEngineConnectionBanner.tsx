@@ -13,7 +13,7 @@ import { redirectToSafeUrl } from "@/utils/redirect";
 
 export const MailEngineConnectionBanner = memo(
   function MailEngineConnectionBanner() {
-    const { emailAccountId, provider } = useAccount();
+    const { emailAccountId, emailAccount, provider } = useAccount();
     const client = useOptionalMailClient();
     const [connection, setConnection] = useState<
       "ready" | "offline" | "blocked_auth" | undefined
@@ -44,7 +44,7 @@ export const MailEngineConnectionBanner = memo(
       };
     }, [client, emailAccountId]);
 
-    if (!copy) return null;
+    if (!copy || emailAccount?.account.disconnectedAt) return null;
 
     if (connection === "offline") {
       return (
@@ -59,6 +59,7 @@ export const MailEngineConnectionBanner = memo(
 
     return (
       <AppAlertBanner
+        variant="warning"
         action={
           copy.action ? (
             <Button
@@ -83,7 +84,9 @@ export const MailEngineConnectionBanner = memo(
                   })
                   .finally(() => setReconnecting(false));
               }}
-              size="sm"
+              size="xs"
+              variant="ghost"
+              className="text-inherit underline"
             >
               {copy.action}
             </Button>

@@ -40,6 +40,7 @@ const calendarTarget = z.object({
 });
 export const todoPreferences = z.object({
   defaultCalendar: calendarTarget.nullable().optional(),
+  calendarMode: z.enum(["default", "ask", "off"]).optional(),
   ntfyTopic: z
     .string()
     .max(2048)
@@ -75,6 +76,7 @@ export const todoPreferences = z.object({
   taskUrl: z.string().url().max(2048).optional(),
 });
 export const todoCalendarTask = z.object({
+  target: calendarTarget.optional(),
   taskId: z.string().min(1).max(250),
 });
 export const todoCalendarChoice = todoCalendarTask.extend({

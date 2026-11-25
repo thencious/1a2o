@@ -28,7 +28,7 @@ import {
 } from "@/utils/email/provider-types";
 import { ensureEmailAccountsWatched } from "@/utils/email/watch-manager";
 import { captureException, SafeError } from "@/utils/error";
-import { SCOPES as GMAIL_SCOPES } from "@/utils/gmail/scopes";
+import { MAILBOX_AUTH_SCOPES as GMAIL_SCOPES } from "@/utils/gmail/scopes";
 import {
   fetchGoogleOpenIdProfile,
   getGoogleOauthDiscoveryUrl,
@@ -40,7 +40,8 @@ import {
   isMicrosoftEmulationEnabled,
 } from "@/utils/outlook/oauth";
 import { createOutlookClient } from "@/utils/outlook/client";
-import { SCOPES as OUTLOOK_SCOPES } from "@/utils/outlook/scopes";
+import { MAILBOX_AUTH_SCOPES as OUTLOOK_SCOPES } from "@/utils/outlook/scopes";
+import { connectCalendarFromMailboxGrant } from "@/utils/calendar/mailbox-grant";
 import {
   claimPendingPremiumInvite,
   updateAccountSeats,
@@ -856,6 +857,13 @@ export async function handleLinkAccount(
           }),
         ])
       )[0];
+
+    await connectCalendarFromMailboxGrant({
+      accountId: account.id,
+      provider: account.providerId,
+      grantedScope: account.scope,
+      logger,
+    });
 
     await clearAccountDisconnectedErrorIfResolved({
       userId: account.userId,

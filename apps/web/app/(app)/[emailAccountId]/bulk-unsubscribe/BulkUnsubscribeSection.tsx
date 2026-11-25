@@ -218,6 +218,7 @@ export function BulkUnsubscribe() {
     scan,
     errors: scanErrors,
     loaded: scannedMessages,
+    paused: scanPaused,
   } = useInboxScan(inboxes, () => mutate());
   const refreshInterval = isStatsLoading ? 5000 : 60_000;
 
@@ -484,11 +485,12 @@ export function BulkUnsubscribe() {
           ))}
         </select>
         <span className="text-xs text-muted-foreground">
-          {isStatsLoading
-            ? `Scanning emails... ${scannedMessages.toLocaleString()} indexed`
-            : data
-              ? `${data.newsletters.length.toLocaleString()} senders`
-              : "Loading senders..."}
+          {scanPaused ||
+            (isStatsLoading
+              ? `Scanning emails... ${scannedMessages.toLocaleString()} indexed`
+              : data
+                ? `${data.newsletters.length.toLocaleString()} senders`
+                : "Loading senders...")}
         </span>
       </div>
       {!!data?.accountErrors.length && (

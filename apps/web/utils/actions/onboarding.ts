@@ -18,6 +18,7 @@ export const completedOnboardingAction = actionClientUser
       where: { id: userId, completedOnboardingAt: null },
       data: { completedOnboardingAt: new Date() },
     });
+    return { completed: true };
   });
 
 export const saveSignupIntentAction = actionClientUser

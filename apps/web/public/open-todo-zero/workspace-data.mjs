@@ -34,11 +34,11 @@ export function mergeWorkspaceItems(base, local, remote) {
     const mineChanged = !equal(mine, original),
       theirsChanged = !equal(theirs, original);
     if (!mineChanged) {
-      if (theirs) output.set(id, theirs);
+      if (theirs) output.set(id, withRecoveryHistory(theirs, [mine, theirs]));
       continue;
     }
     if (!theirsChanged || equal(mine, theirs)) {
-      if (mine) output.set(id, mine);
+      if (mine) output.set(id, withRecoveryHistory(mine, [mine, theirs]));
       continue;
     }
     // Deletion wins for the original identity; edited content survives as a recovery copy.
@@ -64,6 +64,7 @@ export function mergeWorkspaceItems(base, local, remote) {
       ...Object.keys(mine),
       ...Object.keys(theirs),
     ])) {
+      if (field === "recoveredVersions") continue;
       const mineField = !equal(mine[field], original?.[field]),
         theirsField = !equal(theirs[field], original?.[field]);
       if (mineField && !theirsField) merged[field] = mine[field];
@@ -72,26 +73,105 @@ export function mergeWorkspaceItems(base, local, remote) {
         mineField &&
         theirsField &&
         !equal(mine[field], theirs[field]) &&
-        !["updatedAt", "order", "aiState", "aiError"].includes(field)
+        !["updatedAt", "order", "noteOrder", "aiState", "aiError"].includes(
+          field,
+        )
       )
         conflict = true;
     }
-    output.set(id, merged);
-    if (conflict) {
-      const copy = recoveryCopy(older);
-      output.set(copy.id, copy);
-    }
+    output.set(
+      id,
+      withRecoveryHistory(merged, [mine, theirs], conflict ? [older] : []),
+    );
   }
-  return [...output.values()];
+  return consolidateRecoveryCopies([...output.values()]);
 }
 function recoveryCopy(item) {
-  const hash = fingerprint(stable(item));
+  const hash = versionFingerprint(item);
   return {
     ...item,
     id: `${item.id.slice(0, 180)}-recovered-${hash}`,
     title: `${item.title || "Untitled"} (recovered edit)`.slice(0, 250),
     recoveredFrom: item.id,
   };
+}
+
+export function consolidateRecoveryCopies(items) {
+  const byId = new Map(items.map((item) => [item.id, item]));
+  const archived = new Map();
+  const visible = [];
+  for (const item of items) {
+    let root = item,
+      seen = new Set([item.id]);
+    while (
+      root.recoveredFrom &&
+      byId.has(root.recoveredFrom) &&
+      !seen.has(root.recoveredFrom)
+    ) {
+      seen.add(root.recoveredFrom);
+      root = byId.get(root.recoveredFrom);
+    }
+    if (root.id !== item.id) {
+      const versions = archived.get(root.id) || [];
+      versions.push(item);
+      archived.set(root.id, versions);
+    } else visible.push(item);
+  }
+  return visible.map((item) =>
+    withRecoveryHistory(item, [item], archived.get(item.id) || []),
+  );
+}
+
+function withRecoveryHistory(current, sources, variants = []) {
+  const versions = new Map(),
+    currentHash = versionFingerprint(current);
+  const queue = [
+    ...sources.flatMap((source) => source?.recoveredVersions || []),
+    ...variants.flatMap((source) => [
+      ...(source.recoveredVersions || []),
+      source,
+    ]),
+  ];
+  for (const version of queue) {
+    const hash = versionFingerprint(version);
+    if (hash === currentHash) continue;
+    const previous = versions.get(hash);
+    if (previous && (previous.updatedAt || 0) >= (version.updatedAt || 0))
+      continue;
+    const { recoveredVersions, ...snapshot } = version;
+    versions.set(hash, snapshot);
+  }
+  const result = { ...current };
+  if (versions.size)
+    result.recoveredVersions = [...versions.values()].sort(
+      (a, b) =>
+        (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0),
+    );
+  else delete result.recoveredVersions;
+  return result;
+}
+
+function versionFingerprint(item) {
+  const content = Object.fromEntries(
+    Object.entries(item).filter(
+      ([key]) =>
+        ![
+          "id",
+          "createdAt",
+          "updatedAt",
+          "order",
+          "noteOrder",
+          "recoveredFrom",
+          "recoveredVersions",
+        ].includes(key),
+    ),
+  );
+  if (item.recoveredFrom)
+    content.title = (content.title || "").replace(
+      /(?: \(recovered edit\))+$/,
+      "",
+    );
+  return fingerprint(stable(content));
 }
 function fingerprint(value) {
   let first = 2_166_136_261,

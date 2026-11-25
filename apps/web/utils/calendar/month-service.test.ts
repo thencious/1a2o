@@ -31,6 +31,7 @@ const connection = {
   accessToken: "private-token",
   refreshToken: "private-refresh",
   expiresAt: null,
+  isConnected: true,
 };
 const provider = {
   calendars: vi.fn(),
@@ -69,7 +70,7 @@ describe("calendar month ownership and aggregation", () => {
     );
     expect(prisma.calendarConnection.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { emailAccount: { userId: "user" }, isConnected: true },
+        where: { emailAccount: { userId: "user" } },
       }),
     );
     expect(createMonthProvider).toHaveBeenCalledTimes(1);
@@ -99,6 +100,22 @@ describe("calendar month ownership and aggregation", () => {
     expect(result.calendars[0].connectionId).toBe("working");
     expect(result.warnings).toEqual([]);
     expect(provider.events).toHaveBeenCalledTimes(1);
+  });
+
+  it("retains the disconnected source identity so the client can keep cached events", async () => {
+    prisma.calendarConnection.findMany.mockResolvedValue([
+      { ...connection, isConnected: false },
+    ] as never);
+    const result = await getCalendarMonth(
+      "user",
+      "2026-10-01T00:00:00Z",
+      "2026-11-01T00:00:00Z",
+      logger,
+    );
+    expect(result.unavailableAccounts).toEqual([
+      { email: "work@example.com", provider: "google" },
+    ]);
+    expect(createMonthProvider).not.toHaveBeenCalled();
   });
   it("tries another copy when listing calendars fails after client creation", async () => {
     prisma.calendarConnection.findMany.mockResolvedValue([

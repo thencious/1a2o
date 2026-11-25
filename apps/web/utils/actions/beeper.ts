@@ -3,6 +3,7 @@ import { connectBeeper } from "@/utils/beeper/connection";
 import {
   saveBeeperRecoveryPreferences,
   ensureBeeperSession,
+  invalidateBeeperSessionStatus,
 } from "@/utils/beeper/session-recovery";
 import { actionClientUser } from "./safe-action";
 import {
@@ -44,9 +45,11 @@ export const reactBeeperMessageAction = actionClientUser
 export const connectBeeperAction = actionClientUser
   .metadata({ name: "connectLocalBeeper" })
   .inputSchema(beeperToken)
-  .action(async ({ ctx: { userId }, parsedInput }) =>
-    connectBeeper(userId, parsedInput.token),
-  );
+  .action(async ({ ctx: { userId }, parsedInput }) => {
+    const result = await connectBeeper(userId, parsedInput.token);
+    invalidateBeeperSessionStatus(userId);
+    return result;
+  });
 export const readBeeperChatAction = actionClientUser
   .metadata({ name: "readBeeperChat" })
   .inputSchema(beeperChat)

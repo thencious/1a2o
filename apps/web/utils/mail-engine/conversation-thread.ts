@@ -127,8 +127,17 @@ export function requestMissingMessageContent(
   client: Pick<MailClient, "ensureMessageContent">,
   view: ConversationView,
   requested: Set<string>,
+  latestOnly = false,
 ) {
-  for (const message of view.messages) {
+  // The reader initially expands the newest message. Don't put older
+  // messages ahead of it in the hydration queue.
+  const first = latestOnly ? view.messages.length - 1 : 0;
+  for (
+    let index = view.messages.length - 1;
+    index >= Math.max(0, first);
+    index--
+  ) {
+    const message = view.messages[index]!;
     const { messageId } = message.key;
     if (message.content.status === "available") continue;
     if (requested.has(messageId)) continue;

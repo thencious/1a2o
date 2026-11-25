@@ -16,11 +16,26 @@ import { MessageInviteDialog } from "./MessageInviteDialog";
 import { prepareMessageInviteAction } from "@/utils/actions/message-invite";
 import { addMessageContactsAction } from "@/utils/actions/message-add-contacts";
 import { matchingMessageCommands } from "@/utils/messages/commands";
-import { requestSlashChat } from "@/utils/messages/slash-context";
+import {
+  cancelScheduledMessageAction,
+  runMessageCommandAction,
+} from "@/utils/actions/message-command";
+import { useChat } from "@/providers/ChatProvider";
+import { useAccount } from "@/providers/EmailAccountProvider";
+import { useSidebar } from "@/components/ui/sidebar";
+import { toastError, toastInfo } from "@/components/Toast";
 import type { PreparedMessageInvite } from "@/utils/messages/invite";
 import { SplitTabs } from "../mail/SplitTabs";
 import { MailLabelChip } from "../mail/MailLabelChip";
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
 import useSWR, { mutate as mutateCache } from "swr";
 import { MessageMedia } from "./MessageMedia";
 import { useSearchParams } from "next/navigation";
@@ -65,6 +80,14 @@ import {
   setBeeperGroupAction,
 } from "@/utils/actions/beeper";
 import { getActionErrorMessage } from "@/utils/error";
+import { useMessageDrafts } from "@/hooks/useMessageDrafts";
+import { useMessageHistory } from "@/hooks/useMessageHistory";
+import {
+  conversationsWithDrafts,
+  messageDraftPrefix,
+  saveMessageDraft,
+  messageDraftEvent,
+} from "@/utils/beeper/message-drafts";
 import { uniqueConversations } from "@/utils/beeper/conversations";
 import type {
   BeeperStatus,
@@ -92,8 +115,8 @@ import { MessageText, MessageLinkCards } from "./MessageLinks";
 import { messagePreviewLinks } from "@/utils/beeper/message-links";
 import { useFocusedConversation } from "@/hooks/useFocusedConversation";
 
-async function read<T>(url: string): Promise<T> {
-  const response = await fetch(url, { cache: "no-store" });
+async function read<T>(url: string, signal?: AbortSignal): Promise<T> {
+  const response = await fetch(url, { cache: "no-store", signal });
   const data = await response.json();
   if (!response.ok) throw new Error(data.error || "Could not load messages.");
   return data;
@@ -166,9 +189,13 @@ export function MessagesWorkspace() {
         revalidateOnFocus: true,
       },
     );
-  const all = groupConversations(
-    uniqueConversations((data ?? []).map((page) => page.items)),
-    conversationGroups,
+  const drafts = useMessageDrafts();
+  const all = conversationsWithDrafts(
+    groupConversations(
+      uniqueConversations((data ?? []).map((page) => page.items)),
+      conversationGroups,
+    ),
+    drafts,
   );
   useEffect(() => {
     if (!notificationChatId || openedNotification.current === notificationKey)
@@ -352,11 +379,13 @@ export function MessagesWorkspace() {
           );
     if (items[next]) open(items[next]);
   };
+  const activeConversation =
+    selected && (all.find((item) => item.id === selected.id) ?? selected);
   return (
     <section
       aria-label="Unified messages"
       onKeyDown={keyboard}
-      className="flex h-[calc(100dvh-2.25rem)] min-h-0 flex-col overflow-hidden bg-background lg:h-dvh"
+      className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background"
     >
       <Dialog
         open={combining}
@@ -627,6 +656,11 @@ export function MessagesWorkspace() {
                               )}
                             </div>
                             <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                              {item.draft && (
+                                <span className="mr-1 text-rose-400">
+                                  [Draft]
+                                </span>
+                              )}
                               {item.preview}
                             </p>
                           </button>
@@ -668,12 +702,10 @@ export function MessagesWorkspace() {
             minSize={30}
             className={selected ? "min-w-0" : "hidden min-w-0 md:block"}
           >
-            {selected ? (
+            {activeConversation ? (
               <ConversationThread
-                key={selected.id}
-                conversation={
-                  all.find((item) => item.id === selected.id) ?? selected
-                }
+                key={conversationHistoryScope(activeConversation)}
+                conversation={activeConversation}
                 onBack={() => setSelected(null)}
                 onSent={() => mutate()}
                 onForward={setForwarding}
@@ -718,6 +750,13 @@ export function MessagesWorkspace() {
   );
 }
 
+function conversationHistoryScope(conversation: Conversation) {
+  return JSON.stringify([
+    conversation.id,
+    conversation.members?.map((member) => member.id).sort(),
+  ]);
+}
+
 function ConversationThread({
   conversation,
   onBack,
@@ -733,24 +772,18 @@ function ConversationThread({
   const destination =
     conversation.members?.find((member) => member.id === sendingVia) ??
     conversation;
-  const { data, error, size, setSize, isValidating, mutate } =
-    useSWRInfinite<MessagePage>(
-      (index, previous) =>
-        previous && !previous.hasMore
-          ? null
-          : `/api/user/messages/thread?chatId=${encodeURIComponent(conversation.id)}${conversation.members ? "&combined=1" : ""}${index ? `&cursor=${encodeURIComponent(previous!.cursor!)}` : ""}`,
-      read,
-      { refreshInterval: 2500, revalidateFirstPage: true },
-    );
-  const remoteMessages = [
-    ...new Map(
-      (data ?? [])
-        .flatMap((page) => page.items)
-        .map((item) => [`${item.chatId}:${item.id}`, item]),
-    ).values(),
-  ].sort(
-    (a, b) =>
-      Date.parse(a.time) - Date.parse(b.time) || a.id.localeCompare(b.id),
+  const {
+    history,
+    refresh,
+    refreshError,
+    loadOlder,
+    olderError,
+    loadingOlder,
+    updateMessage,
+  } = useMessageHistory(
+    `/api/user/messages/thread?chatId=${encodeURIComponent(conversation.id)}${conversation.members ? "&combined=1" : ""}`,
+    conversationHistoryScope(conversation),
+    read<MessagePage>,
   );
   const draftKey = `inbox-zero-message-draft:${conversation.id}`;
   const [text, setText] = useState(() => {
@@ -804,6 +837,33 @@ function ConversationThread({
   const [addingContacts, setAddingContacts] = useState(false);
   const addingContactsRef = useRef(false);
   const [contactResult, setContactResult] = useState("");
+  const [assistantResult, setAssistantResult] = useState("");
+  const [assistantRunning, setAssistantRunning] = useState(false);
+  const assistantBusy = useRef(false);
+  const commandRetry = useRef<{
+    text: string;
+    chatId: string;
+    id: string;
+  } | null>(null);
+  const { emailAccountId } = useAccount();
+  const { setChatId } = useChat();
+  const { setOpen, setOpenMobile } = useSidebar();
+  const { data: scheduledMessages = [], mutate: refreshScheduled } = useSWR<
+    {
+      id: string;
+      text: string;
+      sendAt: string;
+      timezone: string;
+      status: string;
+      failure: string | null;
+    }[]
+  >(
+    `/api/user/messages/scheduled?chatId=${encodeURIComponent(destination.id)}`,
+    read,
+    {
+      refreshInterval: 15_000,
+    },
+  );
   const [commandIndex, setCommandIndex] = useState(0);
   const [commandsClosed, setCommandsClosed] = useState(false);
   const commands = commandsClosed ? [] : matchingMessageCommands(text);
@@ -820,47 +880,88 @@ function ConversationThread({
     null,
   );
   const { outbox, submit } = useMessageOutbox(destination.id, () => {
-    mutate().catch(() => {});
+    refresh();
     onSent();
   });
   const [recalled, setRecalled] = useState<Set<string>>(() => new Set());
   const [editing, setEditing] = useState<ChatMessage>();
-  const messages = applyReadReceiptPositions(
-    mergeMessageOutbox(remoteMessages, outbox),
-  ).map((message) =>
-    recalled.has(`${message.chatId}:${message.id}`)
-      ? { ...message, deleted: true, attachments: [], reactions: [] }
-      : message,
+  const messages = useMemo(
+    () =>
+      applyReadReceiptPositions(
+        mergeMessageOutbox(history?.items ?? [], outbox),
+      ).map((message) =>
+        recalled.has(`${message.chatId}:${message.id}`)
+          ? { ...message, deleted: true, attachments: [], reactions: [] }
+          : message,
+      ),
+    [history?.items, outbox, recalled],
   );
   const forceFollow = useRef(false);
   const scroll = useRef<HTMLDivElement>(null);
+  const olderTrigger = useRef<HTMLDivElement>(null);
+  const nearBottom = useRef(true);
+  const olderAnchor = useRef<{ element: HTMLElement; top: number } | null>(
+    null,
+  );
+  const showOlder = useCallback(() => {
+    loadOlder(() => {
+      const node = scroll.current;
+      if (!node) return;
+      const top = node.getBoundingClientRect().top;
+      for (const element of node.querySelectorAll<HTMLElement>(
+        "article[data-message-id]",
+      )) {
+        const rect = element.getBoundingClientRect();
+        if (rect.bottom > top) {
+          olderAnchor.current = { element, top: rect.top };
+          break;
+        }
+      }
+    });
+  }, [loadOlder]);
+  const hasOlder = Boolean(history?.olderCursor);
+  useEffect(() => {
+    const node = scroll.current;
+    const trigger = olderTrigger.current;
+    if (!node || !trigger || !hasOlder || olderError || loadingOlder) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry?.isIntersecting) showOlder();
+      },
+      { root: node, rootMargin: "120px 0px 0px" },
+    );
+    observer.observe(trigger);
+    return () => observer.disconnect();
+  }, [hasOlder, loadingOlder, olderError, showOlder]);
   useFocusedConversation(
     conversation.id,
-    remoteMessages
-      .filter((message) => !message.outgoing && !message.deleted)
-      .at(-1)?.id,
+    messages.findLast((message) => !message.outgoing && !message.deleted)?.id,
     scroll,
   );
   const last = messages.at(-1)?.renderKey;
   const previousLast = useRef<string | undefined>(undefined);
-  useEffect(() => {
+  // biome-ignore lint/correctness/useExhaustiveDependencies: Older pages can shift the scroll anchor without changing the final message.
+  useLayoutEffect(() => {
     const node = scroll.current;
-    if (!node || !last || last === previousLast.current) return;
+    if (!node) return;
+    const anchor = olderAnchor.current;
+    olderAnchor.current = null;
+    if (anchor?.element.isConnected)
+      node.scrollTop += anchor.element.getBoundingClientRect().top - anchor.top;
+    if (!last || last === previousLast.current) return;
     const follow =
-      forceFollow.current ||
-      !previousLast.current ||
-      node.scrollHeight - node.scrollTop - node.clientHeight < 180;
+      forceFollow.current || !previousLast.current || nearBottom.current;
     previousLast.current = last;
     forceFollow.current = false;
     if (follow) node.scrollTop = node.scrollHeight;
-  }, [last]);
+  }, [history, last]);
   const updateText = (value: string) => {
     setText(value);
     setCommandsClosed(false);
     setCommandIndex(0);
     try {
-      if (value) localStorage.setItem(draftKey, value);
-      else localStorage.removeItem(draftKey);
+      if (saveMessageDraft(localStorage, conversation.id, value))
+        window.dispatchEvent(new Event(messageDraftEvent));
     } catch {}
   };
   const mentions = useMessageMentions(
@@ -948,28 +1049,94 @@ function ConversationThread({
     }
     if (text.startsWith("/")) {
       if (attachment) {
-        setFailure("Remove the attachment before routing a command to Chat.");
+        setFailure("Remove the attachment before using an AI command.");
         return;
       }
-      if (
-        requestSlashChat(
-          text,
-          {
-            tab: "messages",
-            chatId: destination.id,
-            accountId: destination.accountId,
-            title: conversation.title,
-            network: destination.network,
-          },
-          true,
-        )
-      ) {
-        updateText("");
-        setFailure("");
-      } else
-        setFailure(
-          "Chat is busy. Your command is still here; try again when the reply finishes.",
-        );
+      if (assistantBusy.current) {
+        setFailure("The previous AI command is still running.");
+        return;
+      }
+      if (text.trim().length <= 1) return;
+      const command = text;
+      const chatId = destination.id;
+      const pending = commandRetry.current;
+      const requestId =
+        pending?.text === command && pending.chatId === chatId
+          ? pending.id
+          : crypto.randomUUID();
+      commandRetry.current = { text: command, chatId, id: requestId };
+      assistantBusy.current = true;
+      setAssistantRunning(true);
+      setAssistantResult("");
+      setContactResult("");
+      setFailure("");
+      updateText("");
+      composer.current?.focus();
+      try {
+        const result = await runMessageCommandAction(emailAccountId, {
+          command,
+          chatId,
+          title: conversation.title,
+          network: destination.network,
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          requestId,
+        });
+        if (!result?.data) throw new Error(getActionErrorMessage(result ?? {}));
+        commandRetry.current = null;
+        if (result.data.scheduled) {
+          const { status, sendAt, timezone } = result.data.scheduled;
+          if (status === "PENDING" || status === "SENDING") {
+            const description = `Scheduled for ${formatScheduledMessageTime(sendAt, timezone)}.`;
+            if (composer.current) setAssistantResult(description);
+            else toastInfo({ title: "Message scheduled", description });
+          } else if (status === "SUBMITTED") {
+            setAssistantResult("The scheduled message was submitted.");
+          } else {
+            setFailure("This scheduling request is no longer active.");
+          }
+          refreshScheduled();
+        } else if (result.data.answer) {
+          if (composer.current) setAssistantResult(result.data.answer);
+          else
+            toastInfo({ title: "AI command", description: result.data.answer });
+        }
+        if (result.data.assistantChatId) {
+          const assistantChatId = result.data.assistantChatId;
+          const openChat = () => {
+            const showChat = (names: string[]) =>
+              names.includes("chat-sidebar")
+                ? names
+                : [...names, "chat-sidebar"];
+            setChatId(assistantChatId);
+            setOpen(showChat);
+            setOpenMobile(showChat);
+          };
+          if (composer.current) openChat();
+          else
+            toastInfo({
+              title: "Continue in Chat",
+              description: conversation.title,
+              action: { label: "Open Chat", onClick: openChat },
+            });
+        }
+      } catch (error) {
+        const description =
+          error instanceof Error
+            ? error.message
+            : "The AI command could not finish.";
+        if (composer.current) setFailure(description);
+        else toastError({ title: "AI command", description });
+        try {
+          if (!localStorage.getItem(messageDraftPrefix + conversation.id)) {
+            if (composer.current) updateText(command);
+            else if (saveMessageDraft(localStorage, conversation.id, command))
+              window.dispatchEvent(new Event(messageDraftEvent));
+          }
+        } catch {}
+      } finally {
+        assistantBusy.current = false;
+        setAssistantRunning(false);
+      }
       return;
     }
     forceFollow.current = true;
@@ -1032,34 +1199,52 @@ function ConversationThread({
           </p>
         </div>
       </header>
+      {refreshError && history && (
+        <div className="shrink-0 border-b px-3 py-1 text-xs text-muted-foreground">
+          Could not refresh messages. Retrying automatically.
+        </div>
+      )}
       <div
         ref={scroll}
         role="log"
         aria-label="Conversation messages"
-        className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4"
+        className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4 [overflow-anchor:none]"
+        onScroll={(event) => {
+          const node = event.currentTarget;
+          nearBottom.current =
+            node.scrollHeight - node.scrollTop - node.clientHeight < 180;
+        }}
       >
-        {data?.at(-1)?.hasMore && (
-          <Button
-            variant="ghost"
-            className="w-full"
-            disabled={isValidating}
-            onClick={() => {
-              const node = scroll.current;
-              const oldHeight = node?.scrollHeight ?? 0;
-              setSize(size + 1).then(() =>
-                requestAnimationFrame(() => {
-                  if (node) node.scrollTop += node.scrollHeight - oldHeight;
-                }),
-              );
-            }}
-          >
-            Load older messages
-          </Button>
+        {hasOlder && (
+          <div ref={olderTrigger}>
+            <Button
+              variant="ghost"
+              className="w-full"
+              disabled={loadingOlder}
+              onClick={showOlder}
+            >
+              {loadingOlder
+                ? "Loading older messages…"
+                : olderError
+                  ? "Retry loading older messages"
+                  : "Load older messages"}
+            </Button>
+            {olderError && (
+              <p
+                role="status"
+                className="text-center text-xs text-muted-foreground"
+              >
+                {olderError}
+              </p>
+            )}
+          </div>
         )}
         <LoadingContent
-          loading={!data && !error && !messages.length}
+          loading={!history && !refreshError && !messages.length}
           error={
-            error && !messages.length ? { error: error.message } : undefined
+            refreshError && !history && !messages.length
+              ? { error: refreshError }
+              : undefined
           }
         >
           {messages.map((message) => {
@@ -1172,18 +1357,10 @@ function ConversationThread({
                         onCancel={() => setEditing(undefined)}
                         onSaved={(updated) => {
                           setEditing(undefined);
-                          mutate(
-                            (pages) =>
-                              pages?.map((page) => ({
-                                ...page,
-                                items: page.items.map((item) =>
-                                  item.id === updated.id &&
-                                  item.chatId === updated.chatId
-                                    ? updated
-                                    : item,
-                                ),
-                              })),
-                            { revalidate: false },
+                          updateMessage(
+                            updated.chatId,
+                            updated.id,
+                            () => updated,
                           );
                           onSent();
                         }}
@@ -1265,7 +1442,7 @@ function ConversationThread({
                         message={message}
                         onEdit={() => setEditing(message)}
                         onForward={() => onForward(message)}
-                        allowedReactions={data?.[0]?.allowedReactions}
+                        allowedReactions={history?.allowedReactions}
                         onReply={() => {
                           setSendingVia(message.chatId);
                           setReplyTo(message);
@@ -1279,45 +1456,33 @@ function ConversationThread({
                           )
                         }
                         onReaction={(key, remove) => {
-                          mutate(
-                            (pages) =>
-                              pages?.map((page) => ({
-                                ...page,
-                                items: page.items.map((item) => {
-                                  if (
-                                    item.id !== message.id ||
-                                    item.chatId !== message.chatId
-                                  )
-                                    return item;
-                                  const reactions = (item.reactions ?? []).map(
-                                    (reaction) => ({ ...reaction }),
-                                  );
-                                  const existing = reactions.find(
-                                    (reaction) => reaction.key === key,
-                                  );
-                                  if (existing) {
-                                    existing.count += remove
-                                      ? -1
-                                      : existing.mine
-                                        ? 0
-                                        : 1;
-                                    existing.mine = !remove;
-                                  } else if (!remove)
-                                    reactions.push({
-                                      key,
-                                      count: 1,
-                                      mine: true,
-                                    });
-                                  return {
-                                    ...item,
-                                    reactions: reactions.filter(
-                                      (reaction) => reaction.count > 0,
-                                    ),
-                                  };
-                                }),
-                              })),
-                            { revalidate: false },
-                          );
+                          updateMessage(message.chatId, message.id, (item) => {
+                            const reactions = (item.reactions ?? []).map(
+                              (reaction) => ({ ...reaction }),
+                            );
+                            const existing = reactions.find(
+                              (reaction) => reaction.key === key,
+                            );
+                            if (existing) {
+                              existing.count += remove
+                                ? -1
+                                : existing.mine
+                                  ? 0
+                                  : 1;
+                              existing.mine = !remove;
+                            } else if (!remove)
+                              reactions.push({
+                                key,
+                                count: 1,
+                                mine: true,
+                              });
+                            return {
+                              ...item,
+                              reactions: reactions.filter(
+                                (reaction) => reaction.count > 0,
+                              ),
+                            };
+                          });
                         }}
                       />
                     )}
@@ -1339,17 +1504,67 @@ function ConversationThread({
         </LoadingContent>
       </div>
       <div className="relative shrink-0 border-t bg-background p-3">
-        {(addingContacts || preparingInvite) && (
+        {(addingContacts || preparingInvite || assistantRunning) && (
           <div
             role="progressbar"
             aria-label={
-              addingContacts ? "Adding contacts" : "Preparing invitation"
+              assistantRunning
+                ? "Running AI command"
+                : addingContacts
+                  ? "Adding contacts"
+                  : "Preparing invitation"
             }
             aria-valuetext="In progress"
             className="message-command-progress"
           >
             <span />
           </div>
+        )}
+        {scheduledMessages.length > 0 && (
+          <details className="mb-2 text-xs text-muted-foreground">
+            <summary className="w-fit cursor-pointer">
+              Scheduled messages ({scheduledMessages.length})
+            </summary>
+            {scheduledMessages.map((message) => (
+              <div
+                key={message.id}
+                className="mt-1 flex min-w-0 items-center gap-2"
+              >
+                <time dateTime={message.sendAt}>
+                  {formatScheduledMessageTime(message.sendAt, message.timezone)}
+                </time>
+                <span className="min-w-0 flex-1 truncate" title={message.text}>
+                  {message.text}
+                </span>
+                {message.status === "PENDING" ? (
+                  <button
+                    type="button"
+                    className="underline"
+                    onClick={async () => {
+                      const result = await cancelScheduledMessageAction({
+                        id: message.id,
+                      });
+                      if (!result?.data)
+                        setFailure(getActionErrorMessage(result ?? {}));
+                      refreshScheduled();
+                    }}
+                  >
+                    Cancel
+                  </button>
+                ) : message.status === "FAILED" ? (
+                  <span
+                    role="status"
+                    className="text-destructive"
+                    title={message.failure ?? undefined}
+                  >
+                    Failed
+                  </span>
+                ) : (
+                  <span>Sending</span>
+                )}
+              </div>
+            ))}
+          </details>
         )}
         <div
           role="separator"
@@ -1469,14 +1684,16 @@ function ConversationThread({
           className="relative flex items-stretch gap-2"
           style={{ height: composerHeight }}
         >
-          {!addingContacts && contactResult && (
-            <p
-              role="status"
-              className="absolute bottom-full left-0 right-0 mb-1 rounded border bg-background p-2 text-xs text-muted-foreground"
-            >
-              {contactResult}
-            </p>
-          )}
+          {!addingContacts &&
+            !assistantRunning &&
+            (assistantResult || contactResult) && (
+              <p
+                role="status"
+                className="absolute bottom-full left-0 right-0 mb-1 rounded border bg-background p-2 text-xs text-muted-foreground"
+              >
+                {assistantResult || contactResult}
+              </p>
+            )}
           {commands.length > 0 && (
             <div
               id="message-command-menu"
@@ -1659,6 +1876,17 @@ function ConversationThread({
       </div>
     </div>
   );
+}
+
+function formatScheduledMessageTime(sendAt: Date | string, timezone: string) {
+  return new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: timezone,
+    timeZoneName: "short",
+  }).format(new Date(sendAt));
 }
 
 function BeeperSettings({

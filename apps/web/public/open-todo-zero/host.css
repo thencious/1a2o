@@ -420,3 +420,74 @@ body.todo-section-resizing * {
   :is(.priority-heading, .task-title, .row-title-input) {
   color: #e99797;
 }
+
+#todo-calendar-status a {
+  color: #b4c9e8;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+#todo-calendar-mode,
+.todo-calendar-picker select {
+  width: 100%;
+  padding: 8px;
+  font: inherit;
+  color: #ddd;
+  background: #242424;
+  border: 1px solid #444;
+  border-radius: 5px;
+}
+.todo-calendar-picker {
+  width: min(480px, calc(100vw - 32px));
+  padding: 22px;
+  font:
+    13px / 1.5 system-ui,
+    sans-serif;
+  color: #d4d4d4;
+  background: #262626;
+  border: 1px solid #525252;
+  border-radius: 10px;
+}
+.todo-calendar-picker::backdrop {
+  background: #0009;
+}
+.todo-calendar-picker h2 {
+  margin: 0 0 10px;
+  font-size: 17px;
+}
+.todo-calendar-picker .calendar-task-name {
+  font-weight: 600;
+}
+.todo-calendar-picker .calendar-remember {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 16px;
+}
+.todo-calendar-picker input[type="checkbox"] {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+}
+.todo-calendar-picker .calendar-help {
+  font-size: 12px;
+  color: #a3a3a3;
+}
+.todo-calendar-picker button {
+  padding: 7px 10px;
+  color: inherit;
+  cursor: pointer;
+  background: #404040;
+  border: 0;
+  border-radius: 5px;
+}
+.todo-calendar-picker button:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+.todo-calendar-picker .settings-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 18px;
+}

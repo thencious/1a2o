@@ -4,7 +4,7 @@ import {resolve,sep} from "node:path";
 import {connect} from "node:net";
 import {randomUUID} from "node:crypto";
 import {setTimeout as delay} from "node:timers/promises";
-import {activeReleaseDirectory,switchRelease,validateReleaseDirectory} from "./release-policy.mjs";
+import {activeReleaseDirectory,switchRelease,validateReleaseDirectory,availableProbePort} from "./release-policy.mjs";
 import {compactRelease} from "./compact-release.mjs";
 import {buildProgress} from "../../apps/web/utils/local-update/progress.mjs";
 import {watchBuildOutput} from "./build-progress-output.mjs";
@@ -15,7 +15,10 @@ delete process.env.TSX_TSCONFIG_PATH;delete process.env.LOCAL_NEXT_BUILD_DIR;
 const node=process.execPath,pnpm=resolve(root,"../tools/pnpm/node_modules/pnpm/bin/pnpm.cjs");
 process.env.PATH=[resolve(root,"../tools/node-v24.22.1-win-x64"),resolve(root,"../tools/pnpm"),"C:\\Program Files\\Git\\bin",process.env.PATH].join(sep==="\\"?";":":");
 const updateLock=resolve(context,"update.lock"),statusFile=resolve(context,"update-status.json"),pointer=resolve(context,"active-web-build.json");
-const id=`${Date.now()}-${randomUUID().slice(0,8)}`,candidate=`.next-releases/${id}`,stage=resolve(app,".next-candidate");
+const resumeIndex=process.argv.indexOf('--install-candidate');
+const resumeCandidate=resumeIndex>=0?validateReleaseDirectory(process.argv[resumeIndex+1]):null;
+if(resumeCandidate&&!resumeCandidate.startsWith('.next-releases/'))throw new Error('Only packaged releases can be installed');
+const id=`${Date.now()}-${randomUUID().slice(0,8)}`,candidate=resumeCandidate??`.next-releases/${id}`,stage=resolve(app,".next-candidate");
 let locked=false,probe=null,progress=buildProgress("prepare");
 
 function atomic(file,value){const temp=`${file}.${randomUUID()}.tmp`;writeFileSync(temp,value);renameSync(temp,file);}
@@ -36,12 +39,14 @@ try{
  mkdirSync(context,{recursive:true});
  try{writeFileSync(updateLock,JSON.stringify({pid:process.pid,at:Date.now()}),{flag:"wx"});locked=true;}catch(error){if(error.code!=="EEXIST")throw error;const holder=JSON.parse(readFileSync(updateLock,"utf8"));let alive=true;try{process.kill(holder.pid,0);}catch{alive=false;}if(alive)throw new Error("Another local update is already running");unlinkSync(updateLock);writeFileSync(updateLock,JSON.stringify({pid:process.pid,at:Date.now()}),{flag:"wx"});locked=true;}
  const previous=activeReleaseDirectory(root);
+ const destination=releasePath(candidate);
+ if(!resumeCandidate){
  status("building");
  const buildCode=await new Promise((done,reject)=>{const child=spawn(node,[pnpm,"--filter","inbox-zero-ai","build"],{cwd:root,env:{...process.env,LOCAL_NEXT_BUILD_DIR:".next-candidate"},windowsHide:true,stdio:["ignore","pipe","pipe"],timeout:1800000});watchBuildOutput(child.stdout,process.stdout,reportBuildProgress);watchBuildOutput(child.stderr,process.stderr,reportBuildProgress);child.once("error",reject);child.once("close",code=>done(code));});
  if(buildCode!==0)throw new Error("Compilation failed; the installed version was left running");
  status("building",undefined,"package");
  for(const file of ["BUILD_ID","routes-manifest.json","sw.js"])if(!existsSync(resolve(stage,file)))throw new Error(`Incomplete candidate: ${file}`);
- const destination=releasePath(candidate);mkdirSync(resolve(app,".next-releases"),{recursive:true});
+ mkdirSync(resolve(app,".next-releases"),{recursive:true});
  if(stage!==resolve(app,".next-candidate")||!destination.startsWith(resolve(app,".next-releases")+sep))throw new Error("Unsafe release move");
  mkdirSync(destination);
  // Keep the reusable compiler cache in staging; only runtime artifacts become a release.
@@ -53,20 +58,23 @@ try{
  }
  const oldStatic=resolve(releasePath(previous),"static");if(existsSync(oldStatic))cpSync(oldStatic,resolve(destination,"static"),{recursive:true,force:false,errorOnExist:false});
  console.log("Compact production runtime:", compactRelease(root,candidate));
+ }
+ for(const file of ['BUILD_ID','routes-manifest.json','build-manifest.json','sw.js'])if(!existsSync(resolve(destination,file)))throw new Error('Incomplete packaged candidate: '+file);
  status("checking");
- if(await portOpen(3002))throw new Error("Probe port 3002 is in use; the installed version was left running");
+ const probePort=await availableProbePort();
+ const probeOrigin=`http://127.0.0.1:${probePort}`;
  const out=openSync(resolve(context,"logs/update-probe.log"),"a"),err=openSync(resolve(context,"logs/update-probe.err.log"),"a");
- probe=spawn(node,["--import","tsx",resolve(app,"node_modules/next/dist/bin/next"),"start","--hostname","127.0.0.1","--port","3002"],{cwd:app,env:{...process.env,LOCAL_NEXT_BUILD_DIR:candidate},windowsHide:true,stdio:["ignore",out,err]});closeSync(out);closeSync(err);
- await health(3002);
- const login=await fetch("http://127.0.0.1:3002/login",{signal:AbortSignal.timeout(45000)});await login.body?.cancel();if(!login.ok)throw new Error("Candidate login page failed");
+ probe=spawn(node,["--import","tsx",resolve(app,"node_modules/next/dist/bin/next"),"start","--hostname","127.0.0.1","--port",String(probePort)],{cwd:app,env:{...process.env,LOCAL_NEXT_BUILD_DIR:candidate},windowsHide:true,stdio:["ignore",out,err]});closeSync(out);closeSync(err);
+ await health(probePort);
+ const login=await fetch(`${probeOrigin}/login`,{signal:AbortSignal.timeout(45000)});await login.body?.cancel();if(!login.ok)throw new Error("Candidate login page failed");
  // Workspace templates use public assets outside the Next bundle. Verify every
  // dependency against the candidate server before switching the installed app.
  const workspaceAssets=new Set();
  for(const template of ["index.html","notes.html"]){
   const html=readFileSync(resolve(app,"public/open-todo-zero",template),"utf8");
   for(const match of html.matchAll(/<(?:script|link)\b[^>]*(?:src|href)="([^"]+)"/g)){
-   const target=new URL(match[1],"http://127.0.0.1:3002/open-todo-zero/");
-   if(target.origin==="http://127.0.0.1:3002"&&!target.pathname.startsWith("/branding/"))workspaceAssets.add(target.href);
+   const target=new URL(match[1],`${probeOrigin}/open-todo-zero/`);
+   if(target.origin===probeOrigin&&!target.pathname.startsWith("/branding/"))workspaceAssets.add(target.href);
   }
  }
  for(const url of workspaceAssets){
@@ -75,7 +83,7 @@ try{
  }
  const manifest=JSON.parse(readFileSync(resolve(destination,"build-manifest.json"),"utf8"));
  const asset=manifest.rootMainFiles?.find(file=>file.endsWith(".js"));
- if(asset){const response=await fetch(`http://127.0.0.1:3002/_next/${asset}`,{signal:AbortSignal.timeout(10000)});await response.body?.cancel();if(!response.ok)throw new Error("Candidate static assets failed");}
+ if(asset){const response=await fetch(`${probeOrigin}/_next/${asset}`,{signal:AbortSignal.timeout(10000)});await response.body?.cancel();if(!response.ok)throw new Error("Candidate static assets failed");}
  probe.kill();await delay(250);probe=null;
  const assets=["sw.js","sw.js.map"].map(name=>({name,old:existsSync(resolve(app,"public",name))?readFileSync(resolve(app,"public",name)):null}));
  status("switching");

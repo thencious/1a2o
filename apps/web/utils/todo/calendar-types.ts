@@ -22,5 +22,7 @@ export type TodoCalendarResult =
       kind: "created" | "unchanged" | "disabled" | "skipped";
       taskId: string;
       eventId?: string;
+      reason?: "timing_or_rules" | "off";
     }
+  | { kind: "needs-calendar"; taskId: string }
   | { kind: "duplicate"; taskId: string; prompt: CalendarPrompt };

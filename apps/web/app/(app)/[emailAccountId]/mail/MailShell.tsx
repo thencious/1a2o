@@ -613,7 +613,7 @@ export function MailShell() {
       id: deferredReaderSelection?.threadId ?? null,
       emailAccountId: deferredReaderSelection?.emailAccountId,
     },
-    { includeDrafts: true, localMail: true },
+    { includeDrafts: true, localMail: true, foreground: true },
   );
   // Withheld until the deferred id catches up, so a fast J/K can't pair the new
   // thread's header with the previous thread's body.

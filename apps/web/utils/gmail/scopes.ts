@@ -36,3 +36,7 @@ export const CALENDAR_SCOPES = [
   // "https://www.googleapis.com/auth/calendar.calendars.readonly", // For reading calendar metadata
   // "https://www.googleapis.com/auth/calendar.calendars", // For creating/managing calendars
 ];
+
+export const MAILBOX_AUTH_SCOPES = [
+  ...new Set([...SCOPES, ...CALENDAR_SCOPES]),
+];

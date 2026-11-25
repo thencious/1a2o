@@ -8,7 +8,10 @@ const {
   mockFindReconnectTarget,
 } = vi.hoisted(() => ({
   mockAuthState: { userId: "user-1" } as { userId: string; emailOtp?: boolean },
-  mockGenerateAuthUrl: vi.fn(() => "https://accounts.google.com/o/oauth2/auth"),
+  mockGenerateAuthUrl: vi.fn(
+    (_options: { scope: string }) =>
+      "https://accounts.google.com/o/oauth2/auth",
+  ),
   mockHasActiveAccountLinkingUser: vi.fn(),
   mockFindReconnectTarget: vi.fn(),
 }));
@@ -66,6 +69,14 @@ describe("google linking auth-url route", () => {
     await expect(response.json()).resolves.toEqual({
       url: "https://accounts.google.com/o/oauth2/auth",
     });
+    const [{ scope }] = mockGenerateAuthUrl.mock.calls[0];
+    expect(scope.split(" ")).toEqual(
+      expect.arrayContaining([
+        "https://www.googleapis.com/auth/gmail.modify",
+        "https://www.googleapis.com/auth/calendar.readonly",
+        "https://www.googleapis.com/auth/calendar.events",
+      ]),
+    );
   });
 
   it("does not let an email code session start mailbox linking", async () => {
@@ -76,5 +87,25 @@ describe("google linking auth-url route", () => {
     expect(response.status).toBe(403);
     expect(mockGenerateAuthUrl).not.toHaveBeenCalled();
     expect(response.cookies.get("google_linking_state")).toBeUndefined();
+  });
+
+  it("allows a browser session to reconnect the specific mailbox without forcing consent", async () => {
+    mockFindReconnectTarget.mockResolvedValue({
+      id: "mailbox",
+      email: "mail@example.com",
+    });
+    const response = await GET(
+      new NextRequest(
+        "http://localhost:3000/api/google/linking/auth-url?emailAccountId=mailbox",
+      ),
+      {} as never,
+    );
+    expect(response.status).toBe(200);
+    const [options] = mockGenerateAuthUrl.mock.calls[0];
+    expect(options).toMatchObject({
+      login_hint: "mail@example.com",
+      access_type: "offline",
+    });
+    expect(options).not.toHaveProperty("prompt");
   });
 });

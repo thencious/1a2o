@@ -161,64 +161,77 @@ async function collectMessages(
   if (!primary || process.env.LOCAL_BEEPER_ENABLED !== "true") return;
   const { client, settings } = await beeperSession(userId);
   const cutoff = state.checkpoints.messages ?? state.startedAt;
-  let cursor: string | undefined;
-  const cursors = new Set<string>();
-  const chats = new Map<
-    string,
-    Awaited<ReturnType<typeof client.chats.retrieve>>
-  >();
+  // Search indexing can lag behind the live conversation feed. Read unread
+  // conversations directly, with overlap for delayed bridge delivery.
+  const since = Math.max(state.startedAt, cutoff - 15 * 60_000);
+  let chatCursor: string | undefined;
+  const chatCursors = new Set<string>();
   do {
-    const page = await client.messages.search({
-      dateAfter: new Date(
-        Math.max(state.startedAt, cutoff - 60_000),
-      ).toISOString(),
-      dateBefore: new Date(now).toISOString(),
-      sender: "others",
-      includeMuted: false,
-      limit: 20,
-      cursor,
+    const chats = await client.chats.list({
+      limit: 200,
+      cursor: chatCursor,
       direction: "before",
     });
-    for (const message of page.items) {
-      const at = Date.parse(message.timestamp);
+    for (const chat of chats.items) {
       if (
-        message.isSender ||
-        message.isDeleted ||
-        message.isHidden ||
-        message.isUnread === false ||
-        !Number.isFinite(at) ||
-        at < Math.max(state.startedAt, cutoff - 60_000) ||
-        at > now
+        !chat.unreadCount ||
+        chat.isMuted ||
+        chat.merge ||
+        !allowedConversation(chat, settings.groups)
       )
         continue;
-      let chat = chats.get(message.chatID);
-      if (!chat) {
-        chat = await client.chats.retrieve(message.chatID);
-        chats.set(message.chatID, chat);
-      }
-      if (chat.merge || !allowedConversation(chat, settings.groups)) continue;
-      enqueueAttention(state, {
-        id: eventId("messages", message.id),
-        tab: "messages",
-        title: clean(
-          `${chat.title || message.senderName || "New message"} · ${networkName(chat.network)}`,
-          160,
-        ),
-        body: clean(
-          message.text ||
-            (message.attachments?.length ? "Attachment" : "New message"),
-          400,
-        ),
-        path: `/${primary}/messages?chatId=${encodeURIComponent(chat.id)}&notification=${encodeURIComponent(message.id)}`,
-        at,
-      });
+      let cursor: string | undefined;
+      const cursors = new Set<string>();
+      do {
+        const page = await client.messages.list(chat.id, {
+          cursor,
+          direction: "before",
+        });
+        for (const message of page.items) {
+          const at = Date.parse(message.timestamp);
+          if (
+            message.isSender ||
+            message.isDeleted ||
+            message.isHidden ||
+            message.isUnread === false ||
+            !Number.isFinite(at) ||
+            at < since ||
+            at > now
+          )
+            continue;
+          enqueueAttention(state, {
+            id: eventId("messages", message.id),
+            tab: "messages",
+            title: clean(
+              `${chat.title || message.senderName || "New message"} \u00b7 ${networkName(chat.network)}`,
+              160,
+            ),
+            body: clean(
+              message.text ||
+                (message.attachments?.length ? "Attachment" : "New message"),
+              400,
+            ),
+            path: `/${primary}/messages?chatId=${encodeURIComponent(chat.id)}&notification=${encodeURIComponent(message.id)}`,
+            at,
+          });
+        }
+        if (
+          !page.hasMore ||
+          !page.items.some((message) => Date.parse(message.timestamp) >= since)
+        )
+          break;
+        if (!page.oldestCursor || cursors.has(page.oldestCursor))
+          throw new Error("Messages pagination did not advance");
+        cursor = page.oldestCursor;
+        cursors.add(cursor);
+      } while (cursor);
     }
-    if (!page.hasMore) break;
-    if (!page.oldestCursor || cursors.has(page.oldestCursor))
-      throw new Error("Messages pagination did not advance");
-    cursor = page.oldestCursor;
-    cursors.add(cursor);
-  } while (cursor);
+    if (!chats.hasMore) break;
+    if (!chats.oldestCursor || chatCursors.has(chats.oldestCursor))
+      throw new Error("Conversations pagination did not advance");
+    chatCursor = chats.oldestCursor;
+    chatCursors.add(chatCursor);
+  } while (chatCursor);
   state.checkpoints.messages = now;
 }
 function clean(value: string, limit: number) {

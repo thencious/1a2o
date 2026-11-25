@@ -7,12 +7,39 @@ export function AppAlertBanner({
   description,
   action,
   className,
+  variant = "error",
 }: {
   title: string;
-  description: React.ReactNode;
+  description?: React.ReactNode;
   action?: React.ReactNode;
   className?: string;
+  variant?: "error" | "warning";
 }) {
+  if (variant === "warning") {
+    const tooltip =
+      typeof description === "string" ? `${title} ${description}` : title;
+    return (
+      <div
+        role="alert"
+        className={cn(
+          "relative z-10 flex w-full min-w-0 shrink-0 items-center gap-2 border-amber-200 border-b bg-amber-50 px-3 py-1 text-amber-950 text-xs dark:border-amber-900/70 dark:bg-amber-950/45 dark:text-amber-200",
+          className,
+        )}
+      >
+        <AlertCircleIcon aria-hidden="true" className="size-4 shrink-0" />
+        <div className="min-w-0 flex-1 truncate" title={tooltip}>
+          <span className="font-medium">{title}</span>
+          {description && <span className="ml-2">{description}</span>}
+        </div>
+        {action && (
+          <div className="flex shrink-0 items-center gap-1 whitespace-nowrap">
+            {action}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div
       role="alert"

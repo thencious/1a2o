@@ -9,7 +9,10 @@ import {
   saveMonthEvent,
 } from "@/utils/calendar/month-service";
 import { getTodoState } from "./storage";
-import { updateTodoIntegration } from "./integration-store";
+import {
+  type CalendarTarget,
+  updateTodoIntegration,
+} from "./integration-store";
 import {
   calendarDayRange,
   possibleCalendarDuplicate,
@@ -29,20 +32,40 @@ export async function syncTodoCalendar(
     calendarKey?: string;
     etag?: string;
   },
+  selectedTarget?: CalendarTarget,
 ): Promise<TodoCalendarResult> {
   return updateTodoIntegration(userId, async (state, checkpoint) => {
     const policy = taskPolicy(state.taskRules);
     const tasks = (await getTodoState(userId)).tasks,
       task = tasks.find((item) => item.id === taskId),
-      proposal = task && taskCalendarProposal(task, policy);
-    if (!proposal || !state.defaultCalendar) {
+      proposal = task && taskCalendarProposal(task, policy, state.timezone);
+    if (!proposal) {
       if (choice)
         throw new SafeError(
           "The task, its rules, or its default calendar changed. Check the suggestion again; nothing was updated.",
         );
       delete state.pending[taskId];
-      return { kind: "disabled", taskId };
+      return { kind: "disabled", taskId, reason: "timing_or_rules" };
     }
+    if (selectedTarget) {
+      await getMonthWriteTarget(
+        userId,
+        selectedTarget.connectionId,
+        selectedTarget.calendarId,
+        logger,
+      );
+      state.taskCalendars ??= {};
+      state.taskCalendars[taskId] = selectedTarget;
+    }
+    const mode =
+      state.calendarMode ?? (state.defaultCalendar ? "default" : null);
+    if (mode === "off" && !selectedTarget)
+      return { kind: "disabled", taskId, reason: "off" };
+    const selectedCalendar =
+      state.taskCalendars?.[taskId] ||
+      state.links[taskId]?.target ||
+      (mode !== "ask" ? state.defaultCalendar : null);
+    if (!selectedCalendar) return { kind: "needs-calendar", taskId };
     if (choice && proposal.hash !== choice.hash)
       throw new SafeError(
         "The task changed. Check its calendar suggestion again.",
@@ -107,7 +130,11 @@ export async function syncTodoCalendar(
     const otherTasks = tasks
       .filter((other) => {
         if (other.id === taskId || other.completedAt) return false;
-        const otherProposal = taskCalendarProposal(other, policy),
+        const otherProposal = taskCalendarProposal(
+            other,
+            policy,
+            state.timezone,
+          ),
           deadline = other.deadline as { at?: number } | undefined;
         const start =
           (otherProposal?.allDay
@@ -190,7 +217,7 @@ export async function syncTodoCalendar(
             connectionId: candidate.calendar.connectionId,
             calendarId: candidate.calendar.calendarId,
           }
-        : state.defaultCalendar;
+        : selectedCalendar;
     await getMonthWriteTarget(
       userId,
       target.connectionId,
@@ -206,7 +233,11 @@ export async function syncTodoCalendar(
     const latest = (await getTodoState(userId)).tasks.find(
       (item) => item.id === taskId,
     );
-    if (!latest || taskCalendarProposal(latest, policy)?.hash !== proposal.hash)
+    if (
+      !latest ||
+      taskCalendarProposal(latest, policy, state.timezone)?.hash !==
+        proposal.hash
+    )
       throw new SafeError(
         "The task changed while calendars were being checked. Nothing was added; retry the suggestion.",
       );

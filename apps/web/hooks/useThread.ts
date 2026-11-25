@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import useSWR from "swr";
 import { useQuerySnapshot } from "@inboxzero/mail-react/use-query-snapshot";
 import type { QuerySnapshot } from "@inboxzero/mail-core/queries";
 import type { ConversationView } from "@inboxzero/mail-core/ports/mail-store";
 import { useOptionalMailClient } from "@inboxzero/mail-react/MailEngineProvider";
 import type { ThreadResponse } from "@/app/api/threads/[id]/route";
 import { useAccount } from "@/providers/EmailAccountProvider";
+import { EMAIL_ACCOUNT_HEADER } from "@/utils/config";
 import {
   readConversationPreview,
   saveConversationPreview,
@@ -35,6 +37,7 @@ export function useThread(
     includeDrafts?: boolean;
     localMail?: boolean;
     parseReplies?: boolean;
+    foreground?: boolean;
   },
 ) {
   const { emailAccountId: currentEmailAccountId } = useAccount();
@@ -70,6 +73,37 @@ export function useThread(
     id,
     pageSize,
   );
+  const foregroundKey =
+    options?.foreground && id && emailAccountId
+      ? JSON.stringify([emailAccountId, id])
+      : null;
+  const newestMessage = view?.messages.findLast(
+    (message) => !message.metadata.roles.includes("draft"),
+  );
+  const needsBody = Boolean(
+    newestMessage && newestMessage.content.status !== "available",
+  );
+  const needsConversation = Boolean(foregroundKey && !view?.messages.length);
+  const [waitingConversation, setWaitingConversation] = useState<string>();
+  useEffect(() => {
+    if (!needsConversation || !foregroundKey) return;
+    // Give the local observation time to publish its cached conversation.
+    const timer = setTimeout(() => setWaitingConversation(foregroundKey), 150);
+    return () => clearTimeout(timer);
+  }, [foregroundKey, needsConversation]);
+  const loadForeground =
+    foregroundKey &&
+    (needsBody || (needsConversation && waitingConversation === foregroundKey));
+  const { data: remote, error: remoteError } = useSWR(
+    loadForeground
+      ? (["foreground-thread", emailAccountId, id!] as const)
+      : null,
+    readForegroundThread,
+    {
+      revalidateOnFocus: false,
+      shouldRetryOnError: false,
+    },
+  );
   useEffect(() => {
     if (snapshot.status === "ready" && snapshot.data)
       saveConversationPreview(snapshot.data, pageSize);
@@ -86,10 +120,47 @@ export function useThread(
     requestMissingMessageContent(client, view, requestedContent.current.ids);
   }, [client, createHandle, view]);
 
-  const data = useMemo<ThreadResponse | undefined>(() => {
+  const localData = useMemo<ThreadResponse | undefined>(() => {
     if (!id || !view) return;
     return conversationViewToThreadResponse(view, { includeDrafts });
   }, [id, includeDrafts, view]);
+  const missingBodies = useMemo(
+    () => (view ? missingConversationBodyIds(view) : new Set<string>()),
+    [view],
+  );
+  const { data, missingBodyIds } = useMemo(() => {
+    if (!remote) return { data: localData, missingBodyIds: missingBodies };
+    if (!view?.messages.length)
+      return { data: remote, missingBodyIds: new Set<string>() };
+    if (!localData) return { data: undefined, missingBodyIds: missingBodies };
+    const messageId = newestMessage?.key.messageId;
+    const body = remote.thread.messages.find((item) => item.id === messageId);
+    if (!body || !messageId || !missingBodies.has(messageId))
+      return { data: localData, missingBodyIds: missingBodies };
+    const remaining = new Set(missingBodies);
+    remaining.delete(messageId);
+    const messages = localData.thread.messages.map((message) => {
+      if (message.id !== messageId) return message;
+      return {
+        ...message,
+        textHtml: body.textHtml,
+        textPlain: body.textPlain,
+        inline: body.inline,
+        attachments: body.attachments,
+        isMeetingInvitation: body.isMeetingInvitation,
+      };
+    });
+    return {
+      data: { thread: { ...localData.thread, messages } },
+      missingBodyIds: remaining,
+    };
+  }, [
+    localData,
+    missingBodies,
+    newestMessage?.key.messageId,
+    remote,
+    view?.messages.length,
+  ]);
 
   const mutate = useCallback(async () => {
     if (!client || !emailAccountId) return data;
@@ -104,8 +175,14 @@ export function useThread(
     return data;
   }, [client, data, emailAccountId, view]);
 
-  const isLoading = Boolean(id) && !data && snapshot.status !== "error";
-  const errorCode = snapshot.error?.code;
+  const awaitingForeground = needsConversation && !remote && !remoteError;
+  const isLoading =
+    awaitingForeground ||
+    (Boolean(id) && !data && snapshot.status !== "error" && !remoteError);
+  const errorCode =
+    data?.thread.messages.length || awaitingForeground
+      ? undefined
+      : (snapshot.error?.code ?? (remoteError ? "unavailable" : undefined));
   // Kept referentially stable so a memoized reader only re-renders when the
   // conversation actually changes.
   const error = useMemo(() => conversationQueryError(errorCode), [errorCode]);
@@ -113,7 +190,7 @@ export function useThread(
   const localAvailability = useMemo(() => {
     if (!data || !view) return;
     return {
-      missingBodyIds: missingConversationBodyIds(view),
+      missingBodyIds,
       outgoing: conversationOutgoingMessages(view),
       sendOperationIds: conversationSendOperationIds(view),
       hasMore: Boolean(view.nextPage),
@@ -125,7 +202,7 @@ export function useThread(
           pageSize: pageSize + CONVERSATION_PAGE_SIZE,
         }),
     };
-  }, [data, emailAccountId, id, loadingMore, pageSize, view]);
+  }, [data, emailAccountId, id, loadingMore, missingBodyIds, pageSize, view]);
 
   return {
     data,
@@ -135,6 +212,19 @@ export function useThread(
     mutate,
     localAvailability,
   };
+}
+
+async function readForegroundThread([, emailAccountId, id]: readonly [
+  string,
+  string,
+  string,
+]): Promise<ThreadResponse> {
+  const response = await fetch(`/api/threads/${encodeURIComponent(id)}`, {
+    headers: { [EMAIL_ACCOUNT_HEADER]: emailAccountId },
+    signal: AbortSignal.timeout(10_000),
+  });
+  if (!response.ok) throw new Error("Could not fetch the email.");
+  return response.json();
 }
 
 function conversationQueryError(

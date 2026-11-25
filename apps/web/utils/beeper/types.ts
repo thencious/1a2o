@@ -57,6 +57,11 @@ export type MessagePage = {
   items: ChatMessage[];
   cursor: string | null;
   hasMore: boolean;
+  scanned?: {
+    chatId: string;
+    oldestTime: string | null;
+    hasMore: boolean;
+  }[];
 };
 export type ChatParticipant = { id: string; label: string; username?: string };
 export type MentionParticipants = {

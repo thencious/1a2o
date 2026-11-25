@@ -401,6 +401,14 @@
       $("workspace").append(pane);
     pane.classList.toggle("mobile-open", mobile.matches && !!selected);
   }
+  window.addEventListener("onea2o-task-timing", (event) => {
+    if (!tasks.some((task) => task.id === event.detail?.taskId)) return;
+    selected = event.detail.taskId;
+    renderList();
+    showTask();
+    positionDetail();
+    $("due-date").focus();
+  });
   function showTask() {
     const task = current();
     $("detail-content").hidden = !task;
